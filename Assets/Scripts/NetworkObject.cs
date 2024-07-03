@@ -1,7 +1,6 @@
 using jKnepel.SimpleUnityNetworking.Managing;
 using System;
 using UnityEngine;
-using UnityEngine.Serialization;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -25,17 +24,17 @@ namespace jKnepel.SynchronisationSchemes
         private string _objectName;
         private int _siblingIndex;
         
-        [SerializeField] private string networkID;
+        [SerializeField] protected string networkID;
         public string NetworkID => networkID;
 
-        [SerializeField] private MonoNetworkManager playModeManager;
+        [SerializeField] protected MonoNetworkManager playModeManager;
         public MonoNetworkManager PlayModeNetworkManager
         {
             get => playModeManager;
             set => playModeManager = value;
         }
         
-        [SerializeField] private ESynchroniseMode synchroniseMode;
+        [SerializeField] protected ESynchroniseMode synchroniseMode;
         public ESynchroniseMode SynchroniseMode
         {
             get => synchroniseMode;
@@ -149,11 +148,13 @@ namespace jKnepel.SynchronisationSchemes
     [CustomEditor(typeof(NetworkObject), true)]
     public class NetworkObjectEditor : Editor
     {
+        private SerializedProperty _networkID;
         private SerializedProperty _playModeManager;
         private SerializedProperty _synchroniseMode;
 
-        private void Awake()
+        protected void Awake()
         {
+            _networkID = serializedObject.FindProperty("networkID");
             _playModeManager = serializedObject.FindProperty("playModeManager");
             _synchroniseMode = serializedObject.FindProperty("synchroniseMode");
         }
@@ -161,7 +162,7 @@ namespace jKnepel.SynchronisationSchemes
         public override void OnInspectorGUI()
         {
             GUI.enabled = false;
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("networkID"));
+            EditorGUILayout.PropertyField(_networkID);
             GUI.enabled = true;
 
             EditorGUILayout.PropertyField(_synchroniseMode);

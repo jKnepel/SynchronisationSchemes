@@ -1,5 +1,5 @@
-using System;
 using jKnepel.SimpleUnityNetworking.Serialising;
+using System;
 using UnityEngine;
 
 namespace jKnepel.SynchronisationSchemes
@@ -62,7 +62,7 @@ namespace jKnepel.SynchronisationSchemes
             }
 
             if (update.UpdateValues.Count > 0)
-                _networkObject.SyncNetworkManager.AddNetworkUpdate(update);
+                syncManager.AddNetworkUpdate(update);
         }
 
         private void NetworkIDUpdated()
@@ -85,17 +85,19 @@ namespace jKnepel.SynchronisationSchemes
                     switch (flag)
                     {
                         case 0:
-                            transform.position = reader.ReadVector3();
+                            _position = transform.position = reader.ReadVector3();
                             break;
                         case 1:
-                            transform.rotation = reader.ReadQuaternion();
+                            _rotation = transform.rotation = reader.ReadQuaternion();
                             break;
                         case 2:
-                            transform.localScale = reader.ReadVector3();
+                            _scale = transform.localScale = reader.ReadVector3();
                             break;
                         default: return; // TODO : handle error
                     }
                 }
+
+                transform.hasChanged = false;
             }
             catch (IndexOutOfRangeException) 
             { 
