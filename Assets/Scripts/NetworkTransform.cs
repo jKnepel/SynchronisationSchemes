@@ -1,3 +1,4 @@
+using jKnepel.SimpleUnityNetworking.Managing;
 using jKnepel.SimpleUnityNetworking.Serialising;
 using System;
 using UnityEngine;
@@ -20,13 +21,16 @@ namespace jKnepel.SynchronisationSchemes
         private Vector3 _scale;
 
         private string _transformNetworkID;
+        private INetworkManager _syncNetworkManager;
 
         private void Awake()
         {
             _networkObject = GetComponent<NetworkObject>();
             _networkObject.OnNetworkIDUpdated += NetworkIDUpdated;
+            _networkObject.OnSyncNetworkManagerUpdated += NetworkIDUpdated;
             _transformNetworkID = $"{_networkObject.NetworkID}#Transform";
-            _networkObject.SyncNetworkManager?.Client.RegisterByteData(_transformNetworkID, TransformUpdateReceived);
+            _syncNetworkManager = _networkObject.SyncNetworkManager;
+            _syncNetworkManager?.Client.RegisterByteData(_transformNetworkID, TransformUpdateReceived);
             
             _position = transform.position;
             _rotation = transform.rotation;
@@ -38,8 +42,7 @@ namespace jKnepel.SynchronisationSchemes
             if (!transform.hasChanged) return;
             transform.hasChanged = false;
 
-            var syncManager = _networkObject.SyncNetworkManager;
-            if (syncManager is null || !_networkObject.ShouldSynchronise) return;
+            if (_syncNetworkManager is null || !_networkObject.ShouldSynchronise) return;
 
             var update = new NetworkUpdate(_transformNetworkID);
             if (_synchronisePosition && _position != transform.position)
@@ -62,19 +65,22 @@ namespace jKnepel.SynchronisationSchemes
             }
 
             if (update.UpdateValues.Count > 0)
-                syncManager.AddNetworkUpdate(update);
+                _syncNetworkManager.AddNetworkUpdate(update);
         }
 
         private void NetworkIDUpdated()
         {
-            _networkObject.SyncNetworkManager?.Client.UnregisterByteData(_transformNetworkID, TransformUpdateReceived);
+            _syncNetworkManager?.Client.UnregisterByteData(_transformNetworkID, TransformUpdateReceived);
             _transformNetworkID = $"{_networkObject.NetworkID}#Transform";
-            _networkObject.SyncNetworkManager?.Client.RegisterByteData(_transformNetworkID, TransformUpdateReceived);
+            _syncNetworkManager = _networkObject.SyncNetworkManager;
+            _syncNetworkManager?.Client.RegisterByteData(_transformNetworkID, TransformUpdateReceived);
         }
 
         private void TransformUpdateReceived(uint sender, byte[] data)
         {
-            var serialiserSettings = _networkObject.SyncNetworkManager.SerialiserSettings;
+            if (_syncNetworkManager is null) return;
+            
+            var serialiserSettings = _syncNetworkManager.SerialiserSettings;
             Reader reader = new(data, serialiserSettings);
 
             try

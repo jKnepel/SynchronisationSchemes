@@ -3,6 +3,7 @@ using System;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
+using UnityEditor.SceneManagement;
 #endif
 
 namespace jKnepel.SynchronisationSchemes
@@ -31,14 +32,24 @@ namespace jKnepel.SynchronisationSchemes
         public MonoNetworkManager PlayModeNetworkManager
         {
             get => playModeManager;
-            set => playModeManager = value;
+            set
+            {
+                if (playModeManager == value) return;
+                playModeManager = value;
+                OnSyncNetworkManagerUpdated?.Invoke();
+            }
         }
         
         [SerializeField] protected ESynchroniseMode synchroniseMode;
         public ESynchroniseMode SynchroniseMode
         {
             get => synchroniseMode;
-            set => synchroniseMode = value;
+            set
+            {
+                if (synchroniseMode == value) return;
+                synchroniseMode = value;
+                OnSyncNetworkManagerUpdated?.Invoke();
+            }
         }
 
         public bool IsActiveMode => SynchroniseMode switch
@@ -58,6 +69,7 @@ namespace jKnepel.SynchronisationSchemes
         };
 
         public event Action OnNetworkIDUpdated;
+        public event Action OnSyncNetworkManagerUpdated;
 
         #endregion
         
@@ -150,28 +162,23 @@ namespace jKnepel.SynchronisationSchemes
     [CustomEditor(typeof(NetworkObject), true)]
     public class NetworkObjectEditor : Editor
     {
-        private SerializedProperty _networkID;
-        private SerializedProperty _playModeManager;
-        private SerializedProperty _synchroniseMode;
-
-        protected void Awake()
-        {
-            _networkID = serializedObject.FindProperty("networkID");
-            _playModeManager = serializedObject.FindProperty("playModeManager");
-            _synchroniseMode = serializedObject.FindProperty("synchroniseMode");
-        }
-
         public override void OnInspectorGUI()
         {
+            var t = (NetworkObject)target;
+            
             GUI.enabled = false;
-            EditorGUILayout.PropertyField(_networkID);
+            EditorGUILayout.TextField("Network ID", t.NetworkID);
             GUI.enabled = true;
 
-            EditorGUILayout.PropertyField(_synchroniseMode);
-            if ((ESynchroniseMode)_synchroniseMode.enumValueIndex == ESynchroniseMode.PlayMode)
-                EditorGUILayout.PropertyField(_playModeManager);
-            
+            t.SynchroniseMode = (ESynchroniseMode)EditorGUILayout.EnumPopup("Synchronise Mode", t.SynchroniseMode);
+            if (t.SynchroniseMode == ESynchroniseMode.PlayMode)
+                t.PlayModeNetworkManager = (MonoNetworkManager)EditorGUILayout.ObjectField("Play Mode Manager", t.PlayModeNetworkManager, typeof(MonoNetworkManager), true);
+
             serializedObject.ApplyModifiedProperties();
+            
+            if (!GUI.changed) return;
+            EditorUtility.SetDirty(t);
+            EditorSceneManager.MarkSceneDirty(t.gameObject.scene);
         }
     }
 #endif
