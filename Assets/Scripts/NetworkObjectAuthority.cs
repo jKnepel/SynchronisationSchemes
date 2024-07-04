@@ -95,7 +95,7 @@ namespace jKnepel.SynchronisationSchemes
 
 		public void RequestAuthority()
 		{
-			if (OwnershipID != 0 || IsAuthor || !IsActiveMode)
+			if (OwnershipID != 0 || IsAuthor || !IsActiveMode || (!_syncNetworkManager?.IsClient ?? true))
 				return;
 
 			_authoritySequence++;

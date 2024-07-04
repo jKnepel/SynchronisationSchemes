@@ -23,6 +23,10 @@ namespace jKnepel.SynchronisationSchemes
         [SerializeField] private bool _synchronisePosition = true;
         [SerializeField] private bool _synchroniseRotation = true;
         [SerializeField] private bool _synchroniseScale = true;
+        [SerializeField] private bool _preventDisallowedChanges = false;
+        
+        // TODO : add component type configuration (Rigidbody, CharacterController)
+        // TODO : add smoothing/snapping
         
         private NetworkObject _networkObject;
         private Vector3 _position;
@@ -48,6 +52,15 @@ namespace jKnepel.SynchronisationSchemes
             _position = transform.position;
             _rotation = transform.rotation;
             _scale = transform.localScale;
+        }
+
+        private void Update()
+        {
+            if (!_preventDisallowedChanges || _networkObject.ShouldSynchronise) return;
+
+            transform.position = _position;
+            transform.rotation = _rotation;
+            transform.localScale = _scale;
         }
 
         private void NetworkIDUpdated()
