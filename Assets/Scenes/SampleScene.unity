@@ -444,6 +444,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eda77348e5e436348bd532574e8a04b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _synchroniseChannel: 0
   _synchronisePosition: 1
   _synchroniseRotation: 1
   _synchroniseScale: 1
@@ -644,6 +645,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eda77348e5e436348bd532574e8a04b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _synchroniseChannel: 0
   _synchronisePosition: 1
   _synchroniseRotation: 1
   _synchroniseScale: 1
@@ -694,8 +696,7 @@ MonoBehaviour:
   _cachedTransportConfiguration: {fileID: 11400000, guid: a47d6fc7aa073e147acd303aa0549381, type: 2}
   _cachedSerialiserConfiguration: {fileID: 11400000, guid: c28bc9426991c334d904fb3107014655, type: 2}
   _cachedLoggerConfiguration: {fileID: 11400000, guid: 91b9e5900f924404e9e98cb631e4c35e, type: 2}
-  _cachedModuleConfigs:
-  - {fileID: 11400000, guid: 583e9e5515a5f614fa4cecd7eca951a1, type: 2}
+  _cachedModuleConfigs: []
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
