@@ -27,6 +27,9 @@ namespace jKnepel.SynchronisationSchemes
 
         public override bool ShouldSynchronise => IsActiveMode && IsAuthor;
 
+        public event Action OnOwnershipChanged;
+        public event Action OnAuthorityChanged;
+
         #endregion
         
         #region lifecycle
@@ -268,24 +271,28 @@ namespace jKnepel.SynchronisationSchemes
         {
             OwnershipID = clientID;
             _ownershipSequence = ownershipSequence;
+            OnOwnershipChanged?.Invoke();
         }
 
         private void SetReleaseOwnership(ushort ownershipSequence)
         {
             OwnershipID = 0;
             _ownershipSequence = ownershipSequence;
+            OnOwnershipChanged?.Invoke();
         }
 
         private void SetTakeAuthority(uint clientID, ushort authoritySequence)
         {
             AuthorityID = clientID;
             _authoritySequence = authoritySequence;
+            OnAuthorityChanged?.Invoke();
         }
 
         private void SetReleaseAuthority(ushort authoritySequence)
         {
             AuthorityID = 0;
             _authoritySequence = authoritySequence;
+            OnAuthorityChanged?.Invoke();
         }
         
         private const ushort HALF_USHORT = ushort.MaxValue / 2;
