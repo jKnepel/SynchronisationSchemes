@@ -1,4 +1,6 @@
+using jKnepel.SimpleUnityNetworking.Networking;
 using jKnepel.SimpleUnityNetworking.Serialising;
+using System;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -20,7 +22,9 @@ namespace jKnepel.SynchronisationSchemes
         public uint AuthorityID { get; private set; }
         public bool IsOwner => (SyncNetworkManager?.IsClient ?? false) && OwnershipID == SyncNetworkManager.Client.ClientID;
         public bool IsAuthor => (SyncNetworkManager?.IsClient ?? false) && AuthorityID == SyncNetworkManager.Client.ClientID;
-        
+
+        public override bool ShouldSynchronise => IsActiveMode && IsAuthor;
+
         #endregion
         
         #region lifecycle
@@ -39,73 +43,73 @@ namespace jKnepel.SynchronisationSchemes
         
 		public void RequestOwnership()
 		{
-			if (OwnershipID != 0 || !ShouldSynchronise || (!SyncNetworkManager?.IsClient ?? true))
+			if (OwnershipID != 0 || !IsActiveMode || (!SyncNetworkManager?.IsClient ?? true))
 				return;
 			
 			var clientID = SyncNetworkManager.Client.ClientID;
 			_ownershipSequence++;
 			if (AuthorityID != clientID) _authoritySequence++;
 			Writer writer = new();
-			NetworkAuthorityPacket packet = new(NetworkAuthorityPacket.EPacketTypes.TakeOwnership, clientID, _ownershipSequence, _authoritySequence);
+			NetworkAuthorityPacket packet = new(NetworkAuthorityPacket.EPacketTypes.RequestOwnership, clientID, _ownershipSequence, _authoritySequence);
 			if (SyncNetworkManager.IsHost)
 			{
 				SetTakeOwnership(clientID, _ownershipSequence);
 				SetTakeAuthority(clientID, _authoritySequence);
 				NetworkAuthorityPacket.Write(writer, packet);
-				SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer());
+				SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			}
 			else
 			{
 				NetworkAuthorityPacket.Write(writer, packet);
-				SyncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer());
+				SyncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			}
 		}
 
 		public void ReleaseOwnership()
 		{
-			if (!IsOwner || !ShouldSynchronise) 
+			if (!IsOwner || !IsActiveMode) 
 				return;
 
-			Writer writer = new();
 			_ownershipSequence++;
+			Writer writer = new();
 			NetworkAuthorityPacket packet = new(NetworkAuthorityPacket.EPacketTypes.ReleaseOwnership, SyncNetworkManager.Client.ClientID, _ownershipSequence, _authoritySequence);
 			if (SyncNetworkManager.IsHost)
 			{
 				SetReleaseOwnership(packet.OwnershipSequence);
 				NetworkAuthorityPacket.Write(writer, packet);
-				SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer());
+				SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			}
 			else
 			{
 				NetworkAuthorityPacket.Write(writer, packet);
-				SyncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer());
+				SyncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			}
 		}
 
 		public void RequestAuthority()
 		{
-			if (OwnershipID != 0 || IsAuthor || !ShouldSynchronise)
+			if (OwnershipID != 0 || IsAuthor || !IsActiveMode)
 				return;
 
 			_authoritySequence++;
 			Writer writer = new();
-			NetworkAuthorityPacket packet = new(NetworkAuthorityPacket.EPacketTypes.TakeAuthority, SyncNetworkManager.Client.ClientID, _ownershipSequence, _authoritySequence);
+			NetworkAuthorityPacket packet = new(NetworkAuthorityPacket.EPacketTypes.RequestAuthority, SyncNetworkManager.Client.ClientID, _ownershipSequence, _authoritySequence);
 			if (SyncNetworkManager.IsHost)
 			{
 				SetTakeAuthority(SyncNetworkManager.Client.ClientID, _authoritySequence);
 				NetworkAuthorityPacket.Write(writer, packet);
-				SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer());
+				SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			}
 			else
 			{
 				NetworkAuthorityPacket.Write(writer, packet);
-				SyncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer());
+				SyncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			}
 		}
 
 		public void ReleaseAuthority()
 		{
-			if (!IsAuthor || IsOwner || !ShouldSynchronise) 
+			if (!IsAuthor || IsOwner || !IsActiveMode) 
 				return;
 
 			_authoritySequence++;
@@ -115,12 +119,12 @@ namespace jKnepel.SynchronisationSchemes
 			{
 				SetReleaseAuthority(packet.AuthoritySequence);
 				NetworkAuthorityPacket.Write(writer, packet);
-				SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer());
+				SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			}
 			else
 			{
 				NetworkAuthorityPacket.Write(writer, packet);
-				SyncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer());
+				SyncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			}
 		}
 		
@@ -139,27 +143,33 @@ namespace jKnepel.SynchronisationSchemes
 
         private void UpdateAuthorityServer(uint sender, byte[] data)
         {
-	        Reader reader = new(data);
-	        var packet = NetworkAuthorityPacket.Read(reader);
-	        Debug.Log(packet.PacketType);
+	        NetworkAuthorityPacket packet;
+
+	        try
+	        {
+		        Reader reader = new(data);
+		        packet = NetworkAuthorityPacket.Read(reader);
+	        }
+	        catch (IndexOutOfRangeException) { return; }
+	        
 	        switch (packet.PacketType)
 	        {
-		        case NetworkAuthorityPacket.EPacketTypes.TakeOwnership:
+		        case NetworkAuthorityPacket.EPacketTypes.RequestOwnership:
 			        if (OwnershipID != 0 || !IsOwnershipNewer(packet.OwnershipSequence))
 			        {
 				        Writer writer = new();
-				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.TakeOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
+				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        SyncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer());
+				        SyncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 			        else
 			        {
 				        SetTakeOwnership(sender, packet.OwnershipSequence);
 				        SetTakeAuthority(sender, packet.AuthoritySequence);
 				        Writer writer = new();
-				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.TakeOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
+				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer());
+				        SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 
 			        break;
@@ -167,9 +177,9 @@ namespace jKnepel.SynchronisationSchemes
 			        if (OwnershipID != sender || !IsOwnershipNewer(packet.OwnershipSequence))
 			        {
 				        Writer writer = new();
-				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.TakeOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
+				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        SyncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer());
+				        SyncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 			        else
 			        {
@@ -177,25 +187,25 @@ namespace jKnepel.SynchronisationSchemes
 				        Writer writer = new();
 				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.ReleaseOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer());
+				        SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 
 			        break;
-		        case NetworkAuthorityPacket.EPacketTypes.TakeAuthority:
+		        case NetworkAuthorityPacket.EPacketTypes.RequestAuthority:
 			        if (OwnershipID != 0 || AuthorityID == sender || !IsAuthorityNewer(packet.AuthoritySequence))
 			        {
 				        Writer writer = new();
-				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.TakeAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
+				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        SyncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer());
+				        SyncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 			        else
 			        {
 				        SetTakeAuthority(sender, packet.AuthoritySequence);
 				        Writer writer = new();
-				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.TakeAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
+				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer());
+				        SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 
 			        break;
@@ -203,9 +213,9 @@ namespace jKnepel.SynchronisationSchemes
 			        if (AuthorityID != sender || !IsAuthorityNewer(packet.AuthoritySequence))
 			        {
 				        Writer writer = new();
-				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.TakeAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
+				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        SyncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer());
+				        SyncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 			        else
 			        {
@@ -213,7 +223,7 @@ namespace jKnepel.SynchronisationSchemes
 				        Writer writer = new();
 				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.ReleaseAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer());
+				        SyncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 
 			        break;
@@ -222,24 +232,31 @@ namespace jKnepel.SynchronisationSchemes
         
         private void UpdateAuthority(uint sender, byte[] data)
         {
-            Reader reader = new(data);
-            var packet = NetworkAuthorityPacket.Read(reader);
-            switch (packet.PacketType)
-            {
-                case NetworkAuthorityPacket.EPacketTypes.TakeOwnership:
-                    SetTakeOwnership(packet.ClientID, packet.OwnershipSequence);
-                    SetTakeAuthority(packet.ClientID, packet.AuthoritySequence);
-                    break;
-                case NetworkAuthorityPacket.EPacketTypes.ReleaseOwnership:
-                    SetReleaseOwnership(packet.OwnershipSequence);
-                    break;
-                case NetworkAuthorityPacket.EPacketTypes.TakeAuthority:
-                    SetTakeAuthority(packet.ClientID, packet.AuthoritySequence);
-                    break;
-                case NetworkAuthorityPacket.EPacketTypes.ReleaseAuthority:
-                    SetReleaseAuthority(packet.AuthoritySequence);
-                    break;
-            }
+	        NetworkAuthorityPacket packet;
+
+	        try
+	        {
+		        Reader reader = new(data);
+		        packet = NetworkAuthorityPacket.Read(reader);
+	        }
+	        catch (IndexOutOfRangeException) { return; }
+	        
+	        switch (packet.PacketType)
+	        {
+		        case NetworkAuthorityPacket.EPacketTypes.RequestOwnership:
+			        SetTakeOwnership(packet.ClientID, packet.OwnershipSequence);
+			        SetTakeAuthority(packet.ClientID, packet.AuthoritySequence);
+			        break;
+		        case NetworkAuthorityPacket.EPacketTypes.ReleaseOwnership:
+			        SetReleaseOwnership(packet.OwnershipSequence);
+			        break;
+		        case NetworkAuthorityPacket.EPacketTypes.RequestAuthority:
+			        SetTakeAuthority(packet.ClientID, packet.AuthoritySequence);
+			        break;
+		        case NetworkAuthorityPacket.EPacketTypes.ReleaseAuthority:
+			        SetReleaseAuthority(packet.AuthoritySequence);
+			        break;
+	        }
         }
         
         private void SetTakeOwnership(uint clientID, ushort ownershipSequence)
@@ -285,9 +302,9 @@ namespace jKnepel.SynchronisationSchemes
         {
 	        public enum EPacketTypes : byte
 	        {
-		        TakeOwnership = 0,
+		        RequestOwnership = 0,
 		        ReleaseOwnership = 1,
-		        TakeAuthority = 2,
+		        RequestAuthority = 2,
 		        ReleaseAuthority = 3
 	        }
 
@@ -337,40 +354,46 @@ namespace jKnepel.SynchronisationSchemes
             EditorGUILayout.Space();
             GUILayout.Label("Authority:", EditorStyles.boldLabel);
             
-            GUI.enabled = false;
             using (new GUILayout.HorizontalScope())
             {
-                EditorGUILayout.IntField(new GUIContent("Ownership ID"), (int)t.OwnershipID);
+	            switch (t.IsOwner)
+	            {
+		            case true when GUILayout.Button("Release Ownership", GUILayout.MinWidth(150)):
+			            t.ReleaseOwnership();
+			            break;
+		            case false when GUILayout.Button("Request Ownership", GUILayout.MinWidth(150)):
+			            t.RequestOwnership();
+			            break;
+	            }
+	            GUI.enabled = false;
                 EditorGUILayout.Space();
-                EditorGUILayout.ToggleLeft("Is Owner", t.IsOwner);
+	            GUILayout.Label(new GUIContent("Client ID:", "The client ID of the owning client"));
+                EditorGUILayout.IntField((int)t.OwnershipID);
+                EditorGUILayout.Space();
+	            GUILayout.Label("Is Owner:");
+                EditorGUILayout.Toggle(t.IsOwner);
+	            GUI.enabled = true;
             }
 
             using (new GUILayout.HorizontalScope())
             {
-                EditorGUILayout.IntField(new GUIContent("Authority ID"), (int)t.AuthorityID);
-                EditorGUILayout.Space();
-                EditorGUILayout.ToggleLeft("Is Author", t.IsAuthor);
-            }
-            GUI.enabled = true;
-            
-            switch (t.IsOwner)
-            {
-	            case true when GUILayout.Button("Release Ownership"):
-		            t.ReleaseOwnership();
-		            break;
-	            case false when GUILayout.Button("Request Ownership"):
-		            t.RequestOwnership();
-		            break;
-            }
-            
-            switch (t.IsAuthor)
-            {
-	            case true when GUILayout.Button("Release Authority"):
-		            t.ReleaseAuthority();
-		            break;
-	            case false when GUILayout.Button("Request Authority"):
-		            t.RequestAuthority();
-		            break;
+	            switch (t.IsAuthor)
+	            {
+		            case true when GUILayout.Button("Release Authority", GUILayout.MinWidth(150)):
+			            t.ReleaseAuthority();
+			            break;
+		            case false when GUILayout.Button("Request Authority", GUILayout.MinWidth(150)):
+			            t.RequestAuthority();
+			            break;
+	            }
+	            GUI.enabled = false;
+	            EditorGUILayout.Space();
+	            GUILayout.Label(new GUIContent("Client ID:", "The client ID of the authoritative client"));
+	            EditorGUILayout.IntField((int)t.AuthorityID);
+	            EditorGUILayout.Space();
+	            GUILayout.Label("Is Author:");
+	            EditorGUILayout.Toggle(t.IsAuthor);
+	            GUI.enabled = true;
             }
         }
     }

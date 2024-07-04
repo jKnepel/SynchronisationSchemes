@@ -67,9 +67,9 @@ namespace jKnepel.SynchronisationSchemes
 
         private void NetworkIDUpdated()
         {
-            _networkObject.SyncNetworkManager.Client.UnregisterByteData(_transformNetworkID, TransformUpdateReceived);
+            _networkObject.SyncNetworkManager?.Client.UnregisterByteData(_transformNetworkID, TransformUpdateReceived);
             _transformNetworkID = $"{_networkObject.NetworkID}#Transform";
-            _networkObject.SyncNetworkManager.Client.RegisterByteData(_transformNetworkID, TransformUpdateReceived);
+            _networkObject.SyncNetworkManager?.Client.RegisterByteData(_transformNetworkID, TransformUpdateReceived);
         }
 
         private void TransformUpdateReceived(uint sender, byte[] data)

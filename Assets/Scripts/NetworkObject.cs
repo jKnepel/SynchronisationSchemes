@@ -41,12 +41,14 @@ namespace jKnepel.SynchronisationSchemes
             set => synchroniseMode = value;
         }
 
-        public bool ShouldSynchronise => SynchroniseMode switch
+        public bool IsActiveMode => SynchroniseMode switch
         {
             ESynchroniseMode.PlayMode when Application.isPlaying => true,
             ESynchroniseMode.EditMode when !Application.isPlaying => true,
             _ => false
         };
+
+        public virtual bool ShouldSynchronise => IsActiveMode;
 
         public INetworkManager SyncNetworkManager => SynchroniseMode switch
         {
@@ -61,11 +63,12 @@ namespace jKnepel.SynchronisationSchemes
         
         #region lifecycle
 
+        // TODO : optimise this
 #if UNITY_EDITOR
         private void OnEnable()
         {
             EditorApplication.hierarchyChanged += OnHierarchyChanged;
-            if (ShouldSynchronise) FindNetworkID();
+            if (IsActiveMode) FindNetworkID();
         }
         
         private void OnDisable()
@@ -75,20 +78,19 @@ namespace jKnepel.SynchronisationSchemes
 #else
         private void Awake()
         {
-            if (!ShouldSynchronise) return;
+            if (!IsActiveMode) return;
             FindNetworkID();
         }
         
         private void OnTransformParentChanged()
         {
-            if (!ShouldSynchronise) return;
+            if (!IsActiveMode) return;
             FindNetworkID();
         }
 
         private void Update()
         {
-            // TODO : optimise this
-            if (!ShouldSynchronise) return;
+            if (!IsActiveMode) return;
             OnHierarchyChanged();
         }
 #endif
@@ -115,7 +117,7 @@ namespace jKnepel.SynchronisationSchemes
         
         private void OnHierarchyChanged()
         {
-            if (!ShouldSynchronise) return;
+            if (!IsActiveMode) return;
             if (transform.GetSiblingIndex() == _siblingIndex
                 && gameObject.name.Equals(_objectName)
                 && transform.parent == _parent) 

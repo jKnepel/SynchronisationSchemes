@@ -631,7 +631,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkID: GameObject (1)#4
   playModeManager: {fileID: 2128803583}
-  synchroniseMode: 1
+  synchroniseMode: 0
 --- !u!114 &1852147083
 MonoBehaviour:
   m_ObjectHideFlags: 0
