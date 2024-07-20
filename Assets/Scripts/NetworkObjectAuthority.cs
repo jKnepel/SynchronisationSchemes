@@ -379,7 +379,7 @@ namespace jKnepel.SynchronisationSchemes
 	            }
 	            GUI.enabled = false;
                 EditorGUILayout.Space();
-	            GUILayout.Label(new GUIContent("Client ID:", "The client ID of the owning client"));
+	            GUILayout.Label(new GUIContent("Owner ID:", "The client ID of the owning client"));
                 EditorGUILayout.IntField((int)t.OwnershipID);
                 EditorGUILayout.Space();
 	            GUILayout.Label("Is Owner:");
@@ -400,7 +400,7 @@ namespace jKnepel.SynchronisationSchemes
 	            }
 	            GUI.enabled = false;
 	            EditorGUILayout.Space();
-	            GUILayout.Label(new GUIContent("Client ID:", "The client ID of the authoritative client"));
+	            GUILayout.Label(new GUIContent("Author ID:", "The client ID of the authoritative client"));
 	            EditorGUILayout.IntField((int)t.AuthorityID);
 	            EditorGUILayout.Space();
 	            GUILayout.Label("Is Author:");
