@@ -3,7 +3,7 @@ using jKnepel.SimpleUnityNetworking.Networking;
 using jKnepel.SimpleUnityNetworking.Serialising;
 using System;
 using System.Collections;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace jKnepel.SynchronisationSchemes
@@ -17,16 +17,19 @@ namespace jKnepel.SynchronisationSchemes
         private struct ETransformSnapshot
         {
             public uint SenderID;
-            // TODO : add tick number
-            public readonly Vector3? Position;
-            public readonly Quaternion? Rotation;
-            public readonly Vector3? Scale;
+            public uint Tick;
+            public DateTime Timestamp;
+            public readonly Vector3 Position;
+            public readonly Quaternion Rotation;
+            public readonly Vector3 Scale;
 
-            public ETransformSnapshot(uint senderID, Vector3? position, Quaternion? rotation, Vector3? scale)
+            public ETransformSnapshot(uint senderID, uint tick, DateTime timestamp, Vector3 position, Quaternion rotation, Vector3 scale)
             {
                 SenderID = senderID;
+                Tick = tick;
+                Timestamp = timestamp;
                 Position = position;
-                Rotation = rotation;
+                Rotation = Quaternion.Normalize(rotation);
                 Scale = scale;
             }
         }
@@ -91,22 +94,19 @@ namespace jKnepel.SynchronisationSchemes
         [SerializeField] private bool _synchroniseRotation = true;
         [SerializeField] private bool _synchroniseScale = true;
         
-        [SerializeField] private bool _preventDisallowedChanges = false;
-        
         [SerializeField] private bool _useInterpolation = true;
-        [SerializeField] private float _interpolationInterval = .1f;
+        [SerializeField] private float _interpolationInterval = .05f;
+        [SerializeField] private float _moveMult = .30f;
         
         // TODO : add component type configuration (Rigidbody, CharacterController)
+        // TODO : add hermite interpolation for rigibodies
         
         private NetworkObject _networkObject;
-        private Vector3 _lastPosition;
-        private Quaternion _lastRotation;
-        private Vector3 _lastScale;
         
         private string _transformNetworkID;
         private INetworkManager _syncNetworkManager;
 
-        private readonly ConcurrentQueue<ETransformSnapshot> _receivedSnapshots = new();
+        private readonly List<ETransformSnapshot> _receivedSnapshots = new();
         
         #endregion
         
@@ -118,46 +118,75 @@ namespace jKnepel.SynchronisationSchemes
             _networkObject.OnNetworkIDUpdated += NetworkIDUpdated;
             _networkObject.OnSyncNetworkManagerUpdated += NetworkIDUpdated;
             NetworkIDUpdated();
-
-            var trf = transform;
-            _lastPosition = trf.position;
-            _lastRotation = trf.rotation;
-            _lastScale = trf.localScale;
-        }
-
-        private void Start()
-        {
-            StartCoroutine(InterpolationCoroutine());
         }
 
         private void Update()
         {
-            if (!_preventDisallowedChanges || _networkObject.ShouldSynchronise) return;
+            if (_networkObject.ShouldSynchronise)
+                return;
+                
+            if (!_useInterpolation || _receivedSnapshots.Count < 2) return;
 
-            var trf = transform;
-            trf.rotation = _lastRotation;
-            trf.position = _lastPosition;
-            trf.localScale = _lastScale;
+            ETransformSnapshot a = default, b = default;
+            var renderingTime = DateTime.Now.AddSeconds(-Mathf.Abs(_interpolationInterval));
+
+            if (_receivedSnapshots.Count == 2)
+            {
+                a = _receivedSnapshots[0];
+                b = _receivedSnapshots[1];
+            }
+            else
+            {
+                for (var i = 2; i <= _receivedSnapshots.Count; i++)
+                {
+                    var snapshot = _receivedSnapshots[^i];
+                    if (snapshot.Timestamp > renderingTime)
+                        continue;
+                    b = snapshot;
+                    a = _receivedSnapshots[^(i - 1)];
+                    break;
+                }
+
+                if (a.Tick == 0 || b.Tick == 0)
+                {
+                    // TODO : extrapolate?
+                    a = _receivedSnapshots[^1];
+                    b = _receivedSnapshots[^2];
+                    LinearInterpolateSnapshots(a, b, 1);
+                }
+            }
+
+            var t = (float)((renderingTime - b.Timestamp) / (a.Timestamp - b.Timestamp));
+            t = Mathf.Clamp01(t);
+            LinearInterpolateSnapshots(a, b, t);
+            
+            // TODO : add smoothing without interpolation
         }
         
         #endregion
         
         #region private methods
 
-        private IEnumerator InterpolationCoroutine()
+        private void LinearInterpolateSnapshots(ETransformSnapshot a, ETransformSnapshot b, float t)
         {
-            while (_useInterpolation)
+            // TODO : add teleport/snap threshold delta
+            // TODO : add rate multiplier depending on length of interpolation queue
+            if (_synchronisePosition)
             {
-                if (_receivedSnapshots.TryDequeue(out var snapshot))
-                {
-                    if (snapshot.Position is not null)
-                        _lastPosition = transform.position = (Vector3)snapshot.Position;
-                    if (snapshot.Rotation is not null)
-                        _lastRotation = transform.rotation = (Quaternion)snapshot.Rotation;
-                    if (snapshot.Scale is not null)
-                        _lastScale = transform.localScale = (Vector3)snapshot.Scale;
-                }
-                yield return new WaitForSecondsRealtime(_interpolationInterval);
+                var targetPos = Vector3.Lerp(a.Position, b.Position, t);
+                transform.position = Vector3.MoveTowards(transform.position, targetPos, Time.deltaTime * _moveMult);
+            }
+
+            if (_synchroniseRotation)
+            {
+                var targetRot = Quaternion.Lerp(a.Rotation, b.Rotation, t);
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, Time.deltaTime * _moveMult);
+            }
+
+            if (_synchroniseScale)
+            {
+                var targetScale = Vector3.Lerp(a.Scale, b.Scale, t);
+                transform.localScale = Vector3.MoveTowards(transform.localScale, targetScale, Time.deltaTime * _moveMult);
             }
         }
 
@@ -186,27 +215,30 @@ namespace jKnepel.SynchronisationSchemes
             Vector3? scale = null;
 
             var trf = transform;
-            if (_synchronisePosition && _lastPosition != trf.position)
-                pos = _lastPosition = trf.position;
-            if (_synchroniseRotation && _lastRotation != trf.rotation)
-                rot = _lastRotation = trf.rotation;
-            if (_synchroniseScale && _lastScale != trf.localScale)
-                scale = _lastScale = trf.localScale;
+            if (_synchronisePosition)
+                pos = trf.position;
+            if (_synchroniseRotation)
+                rot = trf.rotation;
+            if (_synchroniseScale)
+                scale = trf.localScale;
 
             if (pos is not null || rot is not null || scale is not null)
             {
                 ETransformPacket packet = new(pos, rot, scale);
                 Writer writer = new(_syncNetworkManager.SerialiserSettings);
                 ETransformPacket.Write(writer, packet);
-                _syncNetworkManager.Client.SendByteDataToAll(_transformNetworkID, writer.GetBuffer(), _synchroniseChannel);
+                if (_syncNetworkManager.IsServer)
+                    _syncNetworkManager.Server.SendByteDataToAll(_transformNetworkID, writer.GetBuffer(), _synchroniseChannel);
+                else
+                    _syncNetworkManager.Client.SendByteDataToAll(_transformNetworkID, writer.GetBuffer(), _synchroniseChannel);
             }
         }
 
-        private void TransformUpdateReceived(uint sender, byte[] data)
+        private void TransformUpdateReceived(ByteData data)
         {
             if (_syncNetworkManager is null || !_networkObject.IsActiveMode) return;
             
-            Reader reader = new(data, _syncNetworkManager.SerialiserSettings);
+            Reader reader = new(data.Data, _syncNetworkManager.SerialiserSettings);
 
             ETransformPacket packet;
             
@@ -218,18 +250,22 @@ namespace jKnepel.SynchronisationSchemes
 
             if (_useInterpolation)
             {
-                var snapshot = new ETransformSnapshot(sender, packet.Position, packet.Rotation, packet.Scale);
-                _receivedSnapshots.Enqueue(snapshot);
+                var trf = transform;
+                var snapshot = new ETransformSnapshot(data.SenderID, data.Tick, data.Timestamp, 
+                    packet.Position ?? trf.position, 
+                    packet.Rotation ?? trf.rotation, 
+                    packet.Scale ?? trf.localScale);
+                _receivedSnapshots.Add(snapshot);
             }
             else
             {
                 var trf = transform;
                 if (packet.Position is not null)
-                    _lastPosition = trf.position = (Vector3)packet.Position;
+                    trf.position = (Vector3)packet.Position;
                 if (packet.Rotation is not null)
-                    _lastRotation = trf.rotation = (Quaternion)packet.Rotation;
+                    trf.rotation = (Quaternion)packet.Rotation;
                 if (packet.Scale is not null)
-                    _lastScale = trf.localScale = (Vector3)packet.Scale;
+                    trf.localScale = (Vector3)packet.Scale;
             }
         }
         

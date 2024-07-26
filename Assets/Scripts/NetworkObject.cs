@@ -59,7 +59,7 @@ namespace jKnepel.SynchronisationSchemes
             _ => false
         };
 
-        public virtual bool ShouldSynchronise => IsActiveMode;
+        public virtual bool ShouldSynchronise => IsActiveMode && SyncNetworkManager is not null && SyncNetworkManager.IsServer;
 
         public INetworkManager SyncNetworkManager => SynchroniseMode switch
         {

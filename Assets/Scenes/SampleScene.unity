@@ -450,7 +450,7 @@ MonoBehaviour:
   _synchroniseScale: 1
   _preventDisallowedChanges: 0
   _useInterpolation: 1
-  _interpolationInterval: 0.1
+  _interpolationInterval: 0.05
 --- !u!114 &1255410131
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -653,8 +653,8 @@ MonoBehaviour:
   _synchroniseRotation: 1
   _synchroniseScale: 1
   _preventDisallowedChanges: 0
-  _useInterpolation: 0
-  _interpolationInterval: 0.1
+  _useInterpolation: 1
+  _interpolationInterval: 0.05
 --- !u!1 &2128803581
 GameObject:
   m_ObjectHideFlags: 0

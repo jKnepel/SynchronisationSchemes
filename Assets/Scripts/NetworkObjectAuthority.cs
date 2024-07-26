@@ -22,13 +22,18 @@ namespace jKnepel.SynchronisationSchemes
         
         public uint OwnershipID { get; private set; }
         public uint AuthorityID { get; private set; }
+
+        public bool IsLocalServerOwner => _syncNetworkManager is not null && _syncNetworkManager.IsServer && OwnershipID == 0;
+        public bool IsLocalServerAuthor => _syncNetworkManager is not null && _syncNetworkManager.IsServer && AuthorityID == 0;
         public bool IsOwner => _syncNetworkManager is not null && _syncNetworkManager.IsClient && OwnershipID == _syncNetworkManager.Client.ClientID;
         public bool IsAuthor => _syncNetworkManager is not null && _syncNetworkManager.IsClient && AuthorityID == _syncNetworkManager.Client.ClientID;
 
-        public override bool ShouldSynchronise => IsActiveMode && IsAuthor;
+        public override bool ShouldSynchronise => IsActiveMode && (IsAuthor || IsLocalServerAuthor);
 
         public event Action OnOwnershipChanged;
         public event Action OnAuthorityChanged;
+        
+        // TODO : remove authority from disconnecting clients
 
         #endregion
         
@@ -149,13 +154,13 @@ namespace jKnepel.SynchronisationSchemes
             _syncNetworkManager?.Server.RegisterByteData(_networkObjectFlag, UpdateAuthorityServer);
         }
 
-        private void UpdateAuthorityServer(uint sender, byte[] data)
+        private void UpdateAuthorityServer(ByteData data)
         {
 	        NetworkAuthorityPacket packet;
 
 	        try
 	        {
-		        Reader reader = new(data);
+		        Reader reader = new(data.Data);
 		        packet = NetworkAuthorityPacket.Read(reader);
 	        }
 	        catch (IndexOutOfRangeException) { return; }
@@ -168,12 +173,12 @@ namespace jKnepel.SynchronisationSchemes
 				        Writer writer = new();
 				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        _syncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
+				        _syncNetworkManager.Server.SendByteDataToClient(data.SenderID, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 			        else
 			        {
-				        SetTakeOwnership(sender, packet.OwnershipSequence);
-				        SetTakeAuthority(sender, packet.AuthoritySequence);
+				        SetTakeOwnership(data.SenderID, packet.OwnershipSequence);
+				        SetTakeAuthority(data.SenderID, packet.AuthoritySequence);
 				        Writer writer = new();
 				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
@@ -182,12 +187,12 @@ namespace jKnepel.SynchronisationSchemes
 
 			        break;
 		        case NetworkAuthorityPacket.EPacketTypes.ReleaseOwnership:
-			        if (OwnershipID != sender || !IsOwnershipNewer(packet.OwnershipSequence))
+			        if (OwnershipID != data.SenderID || !IsOwnershipNewer(packet.OwnershipSequence))
 			        {
 				        Writer writer = new();
 				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestOwnership, OwnershipID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        _syncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
+				        _syncNetworkManager.Server.SendByteDataToClient(data.SenderID, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 			        else
 			        {
@@ -200,16 +205,16 @@ namespace jKnepel.SynchronisationSchemes
 
 			        break;
 		        case NetworkAuthorityPacket.EPacketTypes.RequestAuthority:
-			        if (OwnershipID != 0 || AuthorityID == sender || !IsAuthorityNewer(packet.AuthoritySequence))
+			        if (OwnershipID != 0 || AuthorityID == data.SenderID || !IsAuthorityNewer(packet.AuthoritySequence))
 			        {
 				        Writer writer = new();
 				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        _syncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
+				        _syncNetworkManager.Server.SendByteDataToClient(data.SenderID, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 			        else
 			        {
-				        SetTakeAuthority(sender, packet.AuthoritySequence);
+				        SetTakeAuthority(data.SenderID, packet.AuthoritySequence);
 				        Writer writer = new();
 				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
@@ -218,12 +223,12 @@ namespace jKnepel.SynchronisationSchemes
 
 			        break;
 		        case NetworkAuthorityPacket.EPacketTypes.ReleaseAuthority:
-			        if (AuthorityID != sender || !IsAuthorityNewer(packet.AuthoritySequence))
+			        if (AuthorityID != data.SenderID || !IsAuthorityNewer(packet.AuthoritySequence))
 			        {
 				        Writer writer = new();
 				        NetworkAuthorityPacket answer = new(NetworkAuthorityPacket.EPacketTypes.RequestAuthority, AuthorityID, _ownershipSequence, _authoritySequence);
 				        NetworkAuthorityPacket.Write(writer, answer);
-				        _syncNetworkManager.Server.SendByteDataToClient(sender, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
+				        _syncNetworkManager.Server.SendByteDataToClient(data.SenderID, _networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
 			        }
 			        else
 			        {
@@ -238,13 +243,13 @@ namespace jKnepel.SynchronisationSchemes
 	        }
         }
         
-        private void UpdateAuthority(uint sender, byte[] data)
+        private void UpdateAuthority(ByteData data)
         {
 	        NetworkAuthorityPacket packet;
 
 	        try
 	        {
-		        Reader reader = new(data);
+		        Reader reader = new(data.Data);
 		        packet = NetworkAuthorityPacket.Read(reader);
 	        }
 	        catch (IndexOutOfRangeException) { return; }
