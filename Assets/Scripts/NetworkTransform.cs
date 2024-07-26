@@ -2,7 +2,6 @@ using jKnepel.SimpleUnityNetworking.Managing;
 using jKnepel.SimpleUnityNetworking.Networking;
 using jKnepel.SimpleUnityNetworking.Serialising;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -22,9 +21,16 @@ namespace jKnepel.SynchronisationSchemes
         [SerializeField] private bool _synchroniseRotation = true;
         [SerializeField] private bool _synchroniseScale = true;
         
+        [Header("Interpolation")]
         [SerializeField] private bool _useInterpolation = true;
         [SerializeField] private float _interpolationInterval = .05f;
-        [SerializeField] private float _moveMult = .30f;
+
+        [Header("Extrapolation")]
+        [SerializeField] private bool _useExtrapolation = true;
+        [SerializeField] private float _extrapolationInterval = .2f;
+        
+        [Header("Smoothing")]
+        [SerializeField] private float _moveMult = 30; // TODO : calculate this
         
         // TODO : add component type configuration (Rigidbody, CharacterController)
         // TODO : add hermite interpolation for rigibodies
@@ -35,7 +41,7 @@ namespace jKnepel.SynchronisationSchemes
         private INetworkManager _syncNetworkManager;
 
         private readonly List<ETransformSnapshot> _receivedSnapshots = new();
-        // TODO : delete too long snapshots
+        // TODO : cleanup unused snapshots
         
         #endregion
         
@@ -54,52 +60,29 @@ namespace jKnepel.SynchronisationSchemes
             if (_networkObject.ShouldSynchronise || _receivedSnapshots.Count == 0)
                 return;
                 
-            TargetTransform target = default;
+            TargetTransform target;
             if (_useInterpolation && _receivedSnapshots.Count >= 2)
             {
-                var renderingTime = DateTime.Now.AddSeconds(-Mathf.Abs(_interpolationInterval));
-                // TODO : add rate multiplier depending on length of interpolation queue
-                if (_receivedSnapshots.Count == 2)
-                {
-                    target = LinearInterpolateSnapshots(_receivedSnapshots[1], _receivedSnapshots[0], renderingTime);
-                }
-                else
-                {
-                    for (var i = 1; i <= _receivedSnapshots.Count; i++)
-                    {
-                        var snapshot = _receivedSnapshots[^i];
-                        if (snapshot.Timestamp > renderingTime)
-                            continue;
-                        if (i == 1)
-                        {
-                            // TODO : extrapolate?
-                            target = new()
-                            {
-                                Position = snapshot.Position,
-                                Rotation = snapshot.Rotation,
-                                Scale = snapshot.Scale
-                            };
-                        }
-                        else
-                        {
-                            target = LinearInterpolateSnapshots(_receivedSnapshots[^(i - 1)], snapshot, renderingTime);
-                        }
-                        break;
-                    }
-                }
+                target = InterpolateTransform();
             }
             else
             {
                 var snapshot = _receivedSnapshots[^1];
-                target = new()
+                if (_useExtrapolation && _receivedSnapshots.Count >= 2 && (DateTime.Now - snapshot.Timestamp).TotalSeconds <= _extrapolationInterval)
                 {
-                    Position = snapshot.Position,
-                    Rotation = snapshot.Rotation,
-                    Scale = snapshot.Scale
-                };
+                    target = LinearExtrapolateSnapshots(snapshot, _receivedSnapshots[^2], DateTime.Now);
+                }
+                else
+                {
+                    target = new()
+                    {
+                        Position = snapshot.Position,
+                        Rotation = snapshot.Rotation,
+                        Scale = snapshot.Scale
+                    };
+                }
             }
             
-            // TODO : add smoothing
             // TODO : add teleport/snap threshold delta
             if (_synchronisePosition)
             {
@@ -126,18 +109,18 @@ namespace jKnepel.SynchronisationSchemes
             if (_syncNetworkManager is not null)
             {
                 _syncNetworkManager.Client.UnregisterByteData(_transformNetworkID, TransformUpdateReceived);
-                _syncNetworkManager.OnTickStarted -= CheckTransformUpdates;
+                _syncNetworkManager.OnTickStarted -= SendTransformUpdates;
             }
             _transformNetworkID = $"{_networkObject.NetworkID}#Transform";
             _syncNetworkManager = _networkObject.SyncNetworkManager;
             if (_syncNetworkManager is not null)
             {
                 _syncNetworkManager.Client.RegisterByteData(_transformNetworkID, TransformUpdateReceived);
-                _syncNetworkManager.OnTickStarted += CheckTransformUpdates;
+                _syncNetworkManager.OnTickStarted += SendTransformUpdates;
             }
         }
         
-        private void CheckTransformUpdates(uint _)
+        private void SendTransformUpdates(uint _)
         {
             if (_syncNetworkManager is null || !_networkObject.ShouldSynchronise) return;
 
@@ -186,6 +169,38 @@ namespace jKnepel.SynchronisationSchemes
                 packet.Scale ?? trf.localScale);
             _receivedSnapshots.Add(snapshot);
         }
+
+        private TargetTransform InterpolateTransform()
+        {
+            var renderingTime = DateTime.Now.AddSeconds(-Mathf.Abs(_interpolationInterval));
+            // TODO : add rate multiplier depending on length of interpolation queue
+
+            if (_receivedSnapshots[^1].Timestamp < renderingTime)
+            {
+                var snapshot = _receivedSnapshots[^1];
+                if (_useExtrapolation && (renderingTime - snapshot.Timestamp).TotalSeconds <= _extrapolationInterval)
+                {
+                    return LinearExtrapolateSnapshots(snapshot, _receivedSnapshots[^2], renderingTime);
+                }
+                
+                return new()
+                {
+                    Position = snapshot.Position,
+                    Rotation = snapshot.Rotation,
+                    Scale = snapshot.Scale
+                };
+            }
+
+            TargetTransform target = default;
+            for (var i = 2; i <= _receivedSnapshots.Count; i++)
+            {
+                var snapshot = _receivedSnapshots[^i];
+                if (snapshot.Timestamp > renderingTime) continue;
+                target = LinearInterpolateSnapshots(_receivedSnapshots[^(i - 1)], snapshot, renderingTime);
+                break;
+            }
+            return target;
+        }
         
         private static TargetTransform LinearInterpolateSnapshots(ETransformSnapshot a, ETransformSnapshot b, DateTime time)
         {
@@ -198,6 +213,35 @@ namespace jKnepel.SynchronisationSchemes
                 Rotation = Quaternion.Lerp(a.Rotation, b.Rotation, t),
                 Scale = Vector3.Lerp(a.Scale, b.Scale, t)
             };
+        }
+
+        private static TargetTransform LinearExtrapolateSnapshots(ETransformSnapshot a, ETransformSnapshot b, DateTime time)
+        {
+            var deltaTime = (float)(a.Timestamp - b.Timestamp).TotalSeconds;
+            var deltaPos = (a.Position - b.Position) / deltaTime;
+            var deltaRot = a.Rotation * Quaternion.Inverse(b.Rotation);
+            var deltaScale = (a.Scale - b.Scale) / deltaTime;
+                    
+            var extrapolateTime = (float)(time - a.Timestamp).TotalSeconds;
+            var targetPos = IsVector3NaN(deltaPos)
+                ? a.Position
+                : a.Position + deltaPos * extrapolateTime;
+            var targetRot = a.Rotation * Quaternion.Slerp(Quaternion.identity, deltaRot, extrapolateTime / deltaTime);
+            var targetScale = IsVector3NaN(deltaScale) 
+                ? a.Scale
+                : a.Scale + deltaScale * extrapolateTime;
+                    
+            return new()
+            {
+                Position = targetPos,
+                Rotation = targetRot,
+                Scale = targetScale
+            };
+        }
+
+        private static bool IsVector3NaN(Vector3 vector)
+        {
+            return float.IsNaN(vector.x) || float.IsNaN(vector.y) || float.IsNaN(vector.z);
         }
         
         #endregion
@@ -274,7 +318,7 @@ namespace jKnepel.SynchronisationSchemes
             }
         }
 
-        public struct TargetTransform
+        private struct TargetTransform
         {
             public Vector3 Position;
             public Quaternion Rotation;
