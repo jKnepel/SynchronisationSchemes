@@ -369,7 +369,7 @@ namespace jKnepel.SynchronisationSchemes
             var t = (NetworkObjectAuthority)target;
 
             EditorGUILayout.Space();
-            GUILayout.Label("Authority:", EditorStyles.boldLabel);
+            GUILayout.Label("Authority", EditorStyles.boldLabel);
             
             using (new GUILayout.HorizontalScope())
             {
