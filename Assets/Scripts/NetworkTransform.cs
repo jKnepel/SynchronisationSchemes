@@ -15,23 +15,26 @@ namespace jKnepel.SynchronisationSchemes
     {
         #region fields and properties
         
-        [SerializeField] private ENetworkChannel _synchroniseChannel = ENetworkChannel.ReliableOrdered;
+        [SerializeField] private ENetworkChannel synchroniseChannel = ENetworkChannel.UnreliableOrdered;
         
-        [SerializeField] private bool _synchronisePosition = true;
-        [SerializeField] private bool _synchroniseRotation = true;
-        [SerializeField] private bool _synchroniseScale = true;
+        [SerializeField] private bool synchronisePosition = true;
+        [SerializeField] private bool synchroniseRotation = true;
+        [SerializeField] private bool synchroniseScale = true;
         
-        [Header("Interpolation")]
-        [SerializeField] private bool _useInterpolation = true;
-        [SerializeField] private float _interpolationInterval = .05f;
+        [SerializeField] private bool teleportPosition = true;
+        [SerializeField] private float positionTeleportThreshold = 1;
+        [SerializeField] private bool teleportRotation = true;
+        [SerializeField] private float rotationTeleportThreshold = 90;
+        [SerializeField] private bool teleportScale = true;
+        [SerializeField] private float scaleTeleportThreshold = 1;
+        
+        [SerializeField] private bool useInterpolation = true;
+        [SerializeField] private float interpolationInterval = .05f;
 
-        [Header("Extrapolation")]
-        [SerializeField] private bool _useExtrapolation = true;
-        [SerializeField] private float _extrapolationInterval = .2f;
+        [SerializeField] private bool useExtrapolation = true;
+        [SerializeField] private float extrapolationInterval = .2f;
         
-        [Header("Smoothing")]
-        [SerializeField] private float _moveMult = 30; // TODO : calculate this
-        
+        private float moveMult = 30; // TODO : calculate this
         // TODO : add component type configuration (Rigidbody, CharacterController)
         // TODO : add hermite interpolation for rigibodies
         
@@ -61,14 +64,14 @@ namespace jKnepel.SynchronisationSchemes
                 return;
                 
             TargetTransform target;
-            if (_useInterpolation && _receivedSnapshots.Count >= 2)
+            if (useInterpolation && _receivedSnapshots.Count >= 2)
             {
                 target = InterpolateTransform();
             }
             else
             {
                 var snapshot = _receivedSnapshots[^1];
-                if (_useExtrapolation && _receivedSnapshots.Count >= 2 && (DateTime.Now - snapshot.Timestamp).TotalSeconds <= _extrapolationInterval)
+                if (useExtrapolation && _receivedSnapshots.Count >= 2 && (DateTime.Now - snapshot.Timestamp).TotalSeconds <= extrapolationInterval)
                 {
                     target = LinearExtrapolateSnapshots(snapshot, _receivedSnapshots[^2], DateTime.Now);
                 }
@@ -83,20 +86,30 @@ namespace jKnepel.SynchronisationSchemes
                 }
             }
             
-            // TODO : add teleport/snap threshold delta
-            if (_synchronisePosition)
+            // TODO : add snap
+            var trf = transform;
+            if (synchronisePosition)
             {
-                transform.position = Vector3.MoveTowards(transform.position, target.Position, Time.deltaTime * _moveMult);
+                if (teleportPosition && Vector3.Distance(trf.position, target.Position) >= positionTeleportThreshold)
+                    trf.position = target.Position;
+                else
+                    trf.position = Vector3.MoveTowards(trf.position, target.Position, Time.deltaTime * moveMult);
             }
 
-            if (_synchroniseRotation)
+            if (synchroniseRotation)
             {
-                transform.rotation = Quaternion.RotateTowards(transform.rotation, target.Rotation, Time.deltaTime * _moveMult);
+                if (teleportRotation && Quaternion.Angle(trf.rotation, target.Rotation) >= rotationTeleportThreshold)
+                    trf.rotation = target.Rotation;
+                else
+                    trf.rotation = Quaternion.RotateTowards(trf.rotation, target.Rotation, Time.deltaTime * moveMult);
             }
 
-            if (_synchroniseScale)
+            if (synchroniseScale)
             {
-                transform.localScale = Vector3.MoveTowards(transform.localScale, target.Scale, Time.deltaTime * _moveMult);
+                if (teleportScale && Vector3.Distance(trf.localScale, target.Scale) >= scaleTeleportThreshold)
+                    trf.localScale = target.Scale;
+                else
+                    trf.localScale = Vector3.MoveTowards(trf.localScale, target.Scale, Time.deltaTime * moveMult);
             }
         }
         
@@ -129,11 +142,11 @@ namespace jKnepel.SynchronisationSchemes
             Vector3? scale = null;
 
             var trf = transform;
-            if (_synchronisePosition)
+            if (synchronisePosition)
                 pos = trf.position;
-            if (_synchroniseRotation)
+            if (synchroniseRotation)
                 rot = trf.rotation;
-            if (_synchroniseScale)
+            if (synchroniseScale)
                 scale = trf.localScale;
 
             if (pos is not null || rot is not null || scale is not null)
@@ -142,9 +155,9 @@ namespace jKnepel.SynchronisationSchemes
                 Writer writer = new(_syncNetworkManager.SerialiserSettings);
                 ETransformPacket.Write(writer, packet);
                 if (_syncNetworkManager.IsServer)
-                    _syncNetworkManager.Server.SendByteDataToAll(_transformNetworkID, writer.GetBuffer(), _synchroniseChannel);
+                    _syncNetworkManager.Server.SendByteDataToAll(_transformNetworkID, writer.GetBuffer(), synchroniseChannel);
                 else
-                    _syncNetworkManager.Client.SendByteDataToAll(_transformNetworkID, writer.GetBuffer(), _synchroniseChannel);
+                    _syncNetworkManager.Client.SendByteDataToAll(_transformNetworkID, writer.GetBuffer(), synchroniseChannel);
             }
         }
 
@@ -172,13 +185,13 @@ namespace jKnepel.SynchronisationSchemes
 
         private TargetTransform InterpolateTransform()
         {
-            var renderingTime = DateTime.Now.AddSeconds(-Mathf.Abs(_interpolationInterval));
+            var renderingTime = DateTime.Now.AddSeconds(-Mathf.Abs(interpolationInterval));
             // TODO : add rate multiplier depending on length of interpolation queue
 
             if (_receivedSnapshots[^1].Timestamp < renderingTime)
             {
                 var snapshot = _receivedSnapshots[^1];
-                if (_useExtrapolation && (renderingTime - snapshot.Timestamp).TotalSeconds <= _extrapolationInterval)
+                if (useExtrapolation && (renderingTime - snapshot.Timestamp).TotalSeconds <= extrapolationInterval)
                 {
                     return LinearExtrapolateSnapshots(snapshot, _receivedSnapshots[^2], renderingTime);
                 }
@@ -318,7 +331,7 @@ namespace jKnepel.SynchronisationSchemes
             }
         }
 
-        private struct TargetTransform
+        private class TargetTransform
         {
             public Vector3 Position;
             public Quaternion Rotation;

@@ -444,15 +444,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eda77348e5e436348bd532574e8a04b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _synchroniseChannel: 0
-  _synchronisePosition: 1
-  _synchroniseRotation: 1
-  _synchroniseScale: 1
-  _useInterpolation: 1
-  _interpolationInterval: 0.05
-  _useExtrapolation: 1
-  _extrapolationInterval: 0.2
-  _moveMult: 30
+  synchroniseChannel: 0
+  synchronisePosition: 1
+  synchroniseRotation: 1
+  synchroniseScale: 1
+  teleportPosition: 1
+  positionTeleportThreshold: 1
+  teleportRotation: 1
+  rotationTeleportThreshold: 90
+  teleportScale: 1
+  scaleTeleportThreshold: 1
+  useInterpolation: 1
+  interpolationInterval: 0.05
+  useExtrapolation: 1
+  extrapolationInterval: 0.2
 --- !u!114 &1255410131
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -650,15 +655,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eda77348e5e436348bd532574e8a04b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _synchroniseChannel: 2
-  _synchronisePosition: 1
-  _synchroniseRotation: 1
-  _synchroniseScale: 1
-  _useInterpolation: 1
-  _interpolationInterval: 0.05
-  _useExtrapolation: 1
-  _extrapolationInterval: 0.2
-  _moveMult: 30
+  synchroniseChannel: 2
+  synchronisePosition: 1
+  synchroniseRotation: 1
+  synchroniseScale: 1
+  teleportPosition: 1
+  positionTeleportThreshold: 1
+  teleportRotation: 1
+  rotationTeleportThreshold: 90
+  teleportScale: 1
+  scaleTeleportThreshold: 1
+  useInterpolation: 1
+  interpolationInterval: 0.05
+  useExtrapolation: 1
+  extrapolationInterval: 0.2
 --- !u!1 &2128803581
 GameObject:
   m_ObjectHideFlags: 0
