@@ -269,7 +269,9 @@ namespace jKnepel.SynchronisationSchemes
                 {
                     Position = snapshot.Position,
                     Rotation = snapshot.Rotation,
-                    Scale = snapshot.Scale
+                    Scale = snapshot.Scale,
+                    LinearVelocity = snapshot.LinearVelocity,
+                    AngularVelocity = snapshot.AngularVelocity
                 };
             }
 
@@ -293,7 +295,9 @@ namespace jKnepel.SynchronisationSchemes
             {
                 Position = Vector3.Lerp(left.Position, right.Position, t),
                 Rotation = Quaternion.Lerp(left.Rotation, right.Rotation, t),
-                Scale = Vector3.Lerp(left.Scale, right.Scale, t)
+                Scale = Vector3.Lerp(left.Scale, right.Scale, t),
+                LinearVelocity = Vector3.Lerp(left.LinearVelocity, right.LinearVelocity, t),
+                AngularVelocity = Vector3.Lerp(left.AngularVelocity, right.AngularVelocity, t)
             };
         }
 
@@ -303,6 +307,8 @@ namespace jKnepel.SynchronisationSchemes
             var deltaPos = (a.Position - b.Position) / deltaTime;
             var deltaRot = a.Rotation * Quaternion.Inverse(b.Rotation);
             var deltaScale = (a.Scale - b.Scale) / deltaTime;
+            var deltaLinVel = (a.LinearVelocity - b.LinearVelocity) / deltaTime;
+            var deltaAngVel = (a.AngularVelocity - b.AngularVelocity) / deltaTime;
                     
             var extrapolateTime = (float)(time - a.Timestamp).TotalSeconds;
             var targetPos = IsVector3NaN(deltaPos)
@@ -312,12 +318,20 @@ namespace jKnepel.SynchronisationSchemes
             var targetScale = IsVector3NaN(deltaScale) 
                 ? a.Scale
                 : a.Scale + deltaScale * extrapolateTime;
+            var targetLinearVelocity = IsVector3NaN(deltaLinVel) 
+                ? a.LinearVelocity
+                : a.LinearVelocity + deltaLinVel * extrapolateTime;
+            var targetAngularVelocity = IsVector3NaN(deltaAngVel) 
+                ? a.AngularVelocity
+                : a.AngularVelocity + deltaScale * extrapolateTime;
                     
             return new()
             {
                 Position = targetPos,
                 Rotation = targetRot,
-                Scale = targetScale
+                Scale = targetScale,
+                LinearVelocity = targetLinearVelocity,
+                AngularVelocity = targetAngularVelocity
             };
         }
 
@@ -408,13 +422,13 @@ namespace jKnepel.SynchronisationSchemes
                     writer.WriteVector3((Vector3)packet.Scale);
                 }
                 
-                if (packet.LinearVelocity is not null)
+                if (packet.LinearVelocity is not null && ((Vector3)packet.LinearVelocity).magnitude > 0)
                 {
                     writer.WriteByte((byte)ETransformPacketFlag.LinearVelocity);
                     writer.WriteVector3((Vector3)packet.LinearVelocity);
                 }
                 
-                if (packet.AngularVelocity is not null)
+                if (packet.AngularVelocity is not null && ((Vector3)packet.AngularVelocity).magnitude > 0)
                 {
                     writer.WriteByte((byte)ETransformPacketFlag.AngularVelocity);
                     writer.WriteVector3((Vector3)packet.AngularVelocity);
