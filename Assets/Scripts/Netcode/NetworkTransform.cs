@@ -278,22 +278,22 @@ namespace jKnepel.SynchronisationSchemes
             {
                 var snapshot = _receivedSnapshots[^i];
                 if (snapshot.Timestamp > renderingTime) continue;
-                target = LinearInterpolateSnapshots(_receivedSnapshots[^(i - 1)], snapshot, renderingTime);
+                target = LinearInterpolateSnapshots(snapshot, _receivedSnapshots[^(i - 1)], renderingTime);
                 break;
             }
             return target;
         }
         
-        private static TargetTransform LinearInterpolateSnapshots(ETransformSnapshot a, ETransformSnapshot b, DateTime time)
+        private static TargetTransform LinearInterpolateSnapshots(ETransformSnapshot left, ETransformSnapshot right, DateTime time)
         {
-            var t = (float)((time - b.Timestamp) / (a.Timestamp - b.Timestamp));
+            var t = (float)((time - left.Timestamp) / (right.Timestamp - left.Timestamp));
             t = Mathf.Clamp01(t);
             
             return new()
             {
-                Position = Vector3.Lerp(a.Position, b.Position, t),
-                Rotation = Quaternion.Lerp(a.Rotation, b.Rotation, t),
-                Scale = Vector3.Lerp(a.Scale, b.Scale, t)
+                Position = Vector3.Lerp(left.Position, right.Position, t),
+                Rotation = Quaternion.Lerp(left.Rotation, right.Rotation, t),
+                Scale = Vector3.Lerp(left.Scale, right.Scale, t)
             };
         }
 

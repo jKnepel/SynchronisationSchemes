@@ -166,6 +166,7 @@ MonoBehaviour:
   networkObject: {fileID: 5148754780444866935}
   rb: {fileID: 64366661066845297}
   gravitationalPull: 300
+  isAttached: 0
 --- !u!114 &4260651612386566787
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -189,7 +190,7 @@ MonoBehaviour:
   rotationTeleportThreshold: 90
   teleportScale: 1
   scaleTeleportThreshold: 1
-  useInterpolation: 0
-  interpolationInterval: 0.05
+  useInterpolation: 1
+  interpolationInterval: 0.06
   useExtrapolation: 0
   extrapolationInterval: 0.2

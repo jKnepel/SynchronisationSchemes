@@ -378,6 +378,7 @@ namespace jKnepel.SynchronisationSchemes
     }
     
 #if UNITY_EDITOR
+	[CanEditMultipleObjects]
     [CustomEditor(typeof(NetworkObjectAuthority), true)]
     public class NetworkObjectAuthorityEditor : NetworkObjectEditor
     {

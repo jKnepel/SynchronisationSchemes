@@ -11,11 +11,16 @@ namespace jKnepel.SynchronisationSchemes
         [SerializeField] private NetworkObjectAuthority networkObject;
         [SerializeField] private Rigidbody rb;
         [SerializeField] private float gravitationalPull = 3000;
+        [SerializeField] private bool isAttached;
         
         private Transform _attachedTo;
         private float _maxDistance;
 
-        public bool IsAttached { get; private set; }
+        public bool IsAttached
+        {
+            get => isAttached; 
+            private set => isAttached = value;
+        }
 
         #endregion
 
