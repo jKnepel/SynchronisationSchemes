@@ -1,4 +1,4 @@
-using jKnepel.SimpleUnityNetworking.Managing;
+using jKnepel.ProteusNet.Managing;
 using System;
 using UnityEngine;
 #if UNITY_EDITOR
@@ -16,7 +16,7 @@ namespace jKnepel.SynchronisationSchemes
     
     [ExecuteAlways]
     [DisallowMultipleComponent]
-    [AddComponentMenu("SimpleUnityNetworking/Component/Network Object")]
+    [AddComponentMenu("ProteusNet/Component/Network Object")]
     public class NetworkObject : MonoBehaviour, IEquatable<NetworkObject>
     {
         #region fields and properties

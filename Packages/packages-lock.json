@@ -227,12 +227,12 @@
       },
       "url": "https://packages.unity.com"
     },
-    "jknepel.simpleunitynetworking": {
-      "version": "https://github.com/jKnepel/SimpleUnityNetworking.git#upm",
+    "jknepel.proteusnet": {
+      "version": "https://github.com/jKnepel/ProteusNet.git?path=Assets/ProteusNet",
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "fd406e163df25c56d321ef3fb62dd1377785371c"
+      "hash": "d439e0a7b589aafa2ea5308b7682c2051b1c7a2f"
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",

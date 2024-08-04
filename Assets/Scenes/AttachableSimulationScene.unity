@@ -168,7 +168,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _cachedTransportConfiguration: {fileID: 11400000, guid: a47d6fc7aa073e147acd303aa0549381, type: 2}
-  _cachedSerialiserConfiguration: {fileID: 11400000, guid: c28bc9426991c334d904fb3107014655, type: 2}
+  _cachedSerializerConfiguration: {fileID: 11400000, guid: 0727bfd483a9ab04db2b48f5a59a7ee9, type: 2}
   _cachedLoggerConfiguration: {fileID: 11400000, guid: 91b9e5900f924404e9e98cb631e4c35e, type: 2}
   _cachedModuleConfigs: []
 --- !u!1 &516693411

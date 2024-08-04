@@ -1,6 +1,6 @@
-using jKnepel.SimpleUnityNetworking.Managing;
-using jKnepel.SimpleUnityNetworking.Networking;
-using jKnepel.SimpleUnityNetworking.Serialising;
+using jKnepel.ProteusNet.Managing;
+using jKnepel.ProteusNet.Networking;
+using jKnepel.ProteusNet.Serialising;
 using System;
 using UnityEngine;
 #if UNITY_EDITOR
@@ -9,7 +9,7 @@ using UnityEditor;
 
 namespace jKnepel.SynchronisationSchemes
 {
-    [AddComponentMenu("SimpleUnityNetworking/Component/Network Object (Authority)")]
+    [AddComponentMenu("ProteusNet/Component/Network Object (Authority)")]
     public class NetworkObjectAuthority : NetworkObject
     {
 	    #region fields and properties

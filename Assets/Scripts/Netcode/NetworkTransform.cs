@@ -1,6 +1,6 @@
-using jKnepel.SimpleUnityNetworking.Managing;
-using jKnepel.SimpleUnityNetworking.Networking;
-using jKnepel.SimpleUnityNetworking.Serialising;
+using jKnepel.ProteusNet.Managing;
+using jKnepel.ProteusNet.Networking;
+using jKnepel.ProteusNet.Serialising;
 using System;
 using System.Collections.Generic;
 using Unity.VisualScripting;
@@ -11,7 +11,7 @@ namespace jKnepel.SynchronisationSchemes
     [ExecuteAlways]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
-    [AddComponentMenu("SimpleUnityNetworking/Component/Network Transform")]
+    [AddComponentMenu("ProteusNet/Component/Network Transform")]
     public class NetworkTransform : MonoBehaviour
     {
         public enum ComponentType
@@ -215,7 +215,7 @@ namespace jKnepel.SynchronisationSchemes
                     LinearVelocity = linearVelocity,
                     AngularVelocity = angularVelocity
                 };
-                Writer writer = new(_syncNetworkManager.SerialiserSettings);
+                Writer writer = new(_syncNetworkManager.SerializerSettings);
                 ETransformPacket.Write(writer, packet);
                 if (_syncNetworkManager.IsServer)
                     _syncNetworkManager.Server.SendByteDataToAll(_transformNetworkID, writer.GetBuffer(), synchroniseChannel);
@@ -228,7 +228,7 @@ namespace jKnepel.SynchronisationSchemes
         {
             if (_syncNetworkManager is null || !_networkObject.IsActiveMode) return;
             
-            Reader reader = new(data.Data, _syncNetworkManager.SerialiserSettings);
+            Reader reader = new(data.Data, _syncNetworkManager.SerializerSettings);
 
             ETransformPacket packet;
             
