@@ -77,30 +77,38 @@ namespace jKnepel.SynchronisationSchemes
 
         // TODO : optimise this
 #if UNITY_EDITOR
-        private void OnEnable()
+        protected void Awake()
+        {
+            if (SynchroniseMode == ESynchroniseMode.PlayMode && SyncNetworkManager is null)
+                PlayModeNetworkManager = FindObjectOfType<MonoNetworkManager>();
+        }
+
+        protected void OnEnable()
         {
             EditorApplication.hierarchyChanged += OnHierarchyChanged;
             if (IsActiveMode) FindNetworkID();
         }
         
-        private void OnDisable()
+        protected void OnDisable()
         {
             EditorApplication.hierarchyChanged -= OnHierarchyChanged;
         }
 #else
-        private void Awake()
+        protected void Awake()
         {
             if (!IsActiveMode) return;
+            if (SynchroniseMode == ESynchroniseMode.PlayMode && SyncNetworkManager is null)
+                PlayModeNetworkManager = FindObjectOfType<MonoNetworkManager>();
             FindNetworkID();
         }
         
-        private void OnTransformParentChanged()
+        protected void OnTransformParentChanged()
         {
             if (!IsActiveMode) return;
             FindNetworkID();
         }
 
-        private void Update()
+        protected void Update()
         {
             if (!IsActiveMode) return;
             OnHierarchyChanged();

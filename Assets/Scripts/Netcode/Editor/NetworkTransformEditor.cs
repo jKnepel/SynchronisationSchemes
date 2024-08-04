@@ -49,7 +49,10 @@ namespace jKnepel.SynchronisationSchemes
 
         public override void OnInspectorGUI()
         {
-            EditorGUILayout.PropertyField(_synchronisationChannel, new GUIContent("Synchronisation Channel:"));
+            var t = (NetworkTransform)target;
+            
+            EditorGUILayout.PropertyField(_synchronisationChannel, new GUIContent("Synchronisation Channel"));
+            t.Type = (NetworkTransform.ComponentType)EditorGUILayout.EnumPopup(new GUIContent("Component Type"), t.Type);
             EditorGUILayout.Space();
             
             GUILayout.Label("Synchronisation", EditorStyles.boldLabel);

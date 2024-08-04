@@ -3,6 +3,7 @@ using jKnepel.SimpleUnityNetworking.Networking;
 using jKnepel.SimpleUnityNetworking.Serialising;
 using System;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 namespace jKnepel.SynchronisationSchemes
@@ -13,9 +14,27 @@ namespace jKnepel.SynchronisationSchemes
     [AddComponentMenu("SimpleUnityNetworking/Component/Network Transform")]
     public class NetworkTransform : MonoBehaviour
     {
+        public enum ComponentType
+        {
+            Transform,
+            Rigidbody
+        }
+        
         #region fields and properties
         
         [SerializeField] private ENetworkChannel synchroniseChannel = ENetworkChannel.UnreliableOrdered;
+        
+        [SerializeField] private ComponentType type;
+        public ComponentType Type
+        {
+            get => type;
+            set
+            {
+                if (type == value) return;
+                type = value;
+                // TODO : synchronise type across network
+            }
+        }
         
         [SerializeField] private bool synchronisePosition = true;
         [SerializeField] private bool synchroniseRotation = true;
@@ -39,6 +58,7 @@ namespace jKnepel.SynchronisationSchemes
         // TODO : add hermite interpolation for rigibodies
         
         private NetworkObject _networkObject;
+        private Rigidbody _rigidbody;
         
         private string _transformNetworkID;
         private INetworkManager _syncNetworkManager;
@@ -56,6 +76,15 @@ namespace jKnepel.SynchronisationSchemes
             _networkObject.OnNetworkIDUpdated += NetworkIDUpdated;
             _networkObject.OnSyncNetworkManagerUpdated += NetworkIDUpdated;
             NetworkIDUpdated();
+            SetupTransform();
+        }
+        
+        private void Reset()
+        {
+            if (transform.TryGetComponent(out _rigidbody))
+                type = ComponentType.Rigidbody;
+            else
+                type = ComponentType.Transform;
         }
 
         private void Update()
@@ -111,11 +140,31 @@ namespace jKnepel.SynchronisationSchemes
                 else
                     trf.localScale = Vector3.MoveTowards(trf.localScale, target.Scale, Time.deltaTime * moveMult);
             }
+
+            if (Type == ComponentType.Rigidbody)
+            {
+                _rigidbody.velocity = target.LinearVelocity;
+                _rigidbody.angularVelocity = target.AngularVelocity;
+            }
         }
-        
+
         #endregion
         
         #region private methods
+
+        private void SetupTransform()
+        {
+            switch (Type)
+            {
+                case ComponentType.Transform:
+                    _rigidbody = null;
+                    break;
+                case ComponentType.Rigidbody:
+                    if (!transform.TryGetComponent(out _rigidbody))
+                        _rigidbody = transform.AddComponent<Rigidbody>();
+                    break;
+            }
+        }
 
         private void NetworkIDUpdated()
         {
@@ -140,6 +189,8 @@ namespace jKnepel.SynchronisationSchemes
             Vector3? pos = null;
             Quaternion? rot = null;
             Vector3? scale = null;
+            Vector3? linearVelocity = null;
+            Vector3? angularVelocity = null;
 
             var trf = transform;
             if (synchronisePosition)
@@ -148,10 +199,22 @@ namespace jKnepel.SynchronisationSchemes
                 rot = trf.rotation;
             if (synchroniseScale)
                 scale = trf.localScale;
-
-            if (pos is not null || rot is not null || scale is not null)
+            if (Type == ComponentType.Rigidbody)
             {
-                ETransformPacket packet = new(pos, rot, scale);
+                linearVelocity = _rigidbody.velocity;
+                angularVelocity = _rigidbody.angularVelocity;
+            }
+
+            if (synchronisePosition || synchroniseRotation || synchroniseScale)
+            {
+                ETransformPacket packet = new()
+                {
+                    Position = pos,
+                    Rotation = rot,
+                    Scale = scale,
+                    LinearVelocity = linearVelocity,
+                    AngularVelocity = angularVelocity
+                };
                 Writer writer = new(_syncNetworkManager.SerialiserSettings);
                 ETransformPacket.Write(writer, packet);
                 if (_syncNetworkManager.IsServer)
@@ -176,11 +239,17 @@ namespace jKnepel.SynchronisationSchemes
             catch (IndexOutOfRangeException) { return; }
 
             var trf = transform;
-            var snapshot = new ETransformSnapshot(data.SenderID, data.Tick, data.Timestamp, 
-                packet.Position ?? trf.position, 
-                packet.Rotation ?? trf.rotation, 
-                packet.Scale ?? trf.localScale);
-            _receivedSnapshots.Add(snapshot);
+            _receivedSnapshots.Add(new()
+            {
+                SenderID = data.SenderID,
+                Tick = data.Tick,
+                Timestamp = data.Timestamp,
+                Position = packet.Position ?? trf.position,
+                Rotation = packet.Rotation ?? trf.rotation,
+                Scale = packet.Scale ?? trf.localScale,
+                LinearVelocity = packet.LinearVelocity ?? Vector3.zero,
+                AngularVelocity = packet.AngularVelocity ?? Vector3.zero
+            });
         }
 
         private TargetTransform InterpolateTransform()
@@ -264,70 +333,92 @@ namespace jKnepel.SynchronisationSchemes
             public uint SenderID;
             public uint Tick;
             public DateTime Timestamp;
-            public readonly Vector3 Position;
-            public readonly Quaternion Rotation;
-            public readonly Vector3 Scale;
-
-            public ETransformSnapshot(uint senderID, uint tick, DateTime timestamp, Vector3 position, Quaternion rotation, Vector3 scale)
-            {
-                SenderID = senderID;
-                Tick = tick;
-                Timestamp = timestamp;
-                Position = position;
-                Rotation = rotation;
-                Scale = scale;
-            }
+            public Vector3 Position;
+            public Quaternion Rotation;
+            public Vector3 Scale;
+            public Vector3 LinearVelocity;
+            public Vector3 AngularVelocity;
         }
 
-        private struct ETransformPacket
+        private class ETransformPacket
         {
-            public readonly Vector3? Position;
-            public readonly Quaternion? Rotation;
-            public readonly Vector3? Scale;
-
-            public ETransformPacket(Vector3? position, Quaternion? rotation, Vector3? scale)
+            private enum ETransformPacketFlag : byte
             {
-                Position = position;
-                Rotation = rotation;
-                Scale = scale;
+                Position,
+                Rotation,
+                Scale,
+                LinearVelocity,
+                AngularVelocity
             }
+            
+            public Vector3? Position;
+            public Quaternion? Rotation;
+            public Vector3? Scale;
+            public Vector3? LinearVelocity;
+            public Vector3? AngularVelocity;
+            
+            // TODO : ignore resting velocities
 
             public static ETransformPacket Read(Reader reader)
             {
-                var hasPos = reader.ReadBoolean();
-                Vector3? position = null;
-                if (hasPos)
-                    position = reader.ReadVector3();
+                var packet = new ETransformPacket();
+                while (reader.Remaining > 0)
+                {
+                    var flag = (ETransformPacketFlag)reader.ReadByte();
+                    switch (flag)
+                    {
+                        case ETransformPacketFlag.Position:
+                            packet.Position = reader.ReadVector3();
+                            break;
+                        case ETransformPacketFlag.Rotation:
+                            packet.Rotation = reader.ReadQuaternion();
+                            break;
+                        case ETransformPacketFlag.Scale:
+                            packet.Scale = reader.ReadVector3();
+                            break;
+                        case ETransformPacketFlag.LinearVelocity:
+                            packet.LinearVelocity = reader.ReadVector3();
+                            break;
+                        case ETransformPacketFlag.AngularVelocity:
+                            packet.AngularVelocity = reader.ReadVector3();
+                            break;
+                    }
+                }
 
-                var hasRot = reader.ReadBoolean();
-                Quaternion? rotation = null;
-                if (hasRot)
-                    rotation = reader.ReadQuaternion();
-
-                var hasScale = reader.ReadBoolean();
-                Vector3? scale = null;
-                if (hasScale)
-                    scale = reader.ReadVector3();
-
-                return new(position, rotation, scale);
+                return packet;
             }
 
             public static void Write(Writer writer, ETransformPacket packet)
             {
-                var hasPos = packet.Position is not null;
-                writer.WriteBoolean(hasPos);
-                if (hasPos)
+                if (packet.Position is not null)
+                {
+                    writer.WriteByte((byte)ETransformPacketFlag.Position);
                     writer.WriteVector3((Vector3)packet.Position);
+                }
                 
-                var hasRot = packet.Rotation is not null;
-                writer.WriteBoolean(hasRot);
-                if (hasRot)
+                if (packet.Rotation is not null)
+                {
+                    writer.WriteByte((byte)ETransformPacketFlag.Rotation);
                     writer.WriteQuaternion((Quaternion)packet.Rotation);
+                }
                 
-                var hasScale = packet.Scale is not null;
-                writer.WriteBoolean(hasScale);
-                if (hasScale)
+                if (packet.Scale is not null)
+                {
+                    writer.WriteByte((byte)ETransformPacketFlag.Scale);
                     writer.WriteVector3((Vector3)packet.Scale);
+                }
+                
+                if (packet.LinearVelocity is not null)
+                {
+                    writer.WriteByte((byte)ETransformPacketFlag.LinearVelocity);
+                    writer.WriteVector3((Vector3)packet.LinearVelocity);
+                }
+                
+                if (packet.AngularVelocity is not null)
+                {
+                    writer.WriteByte((byte)ETransformPacketFlag.AngularVelocity);
+                    writer.WriteVector3((Vector3)packet.AngularVelocity);
+                }
             }
         }
 
@@ -336,6 +427,8 @@ namespace jKnepel.SynchronisationSchemes
             public Vector3 Position;
             public Quaternion Rotation;
             public Vector3 Scale;
+            public Vector3 LinearVelocity;
+            public Vector3 AngularVelocity;
         }
     }
 }

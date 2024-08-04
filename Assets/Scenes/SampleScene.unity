@@ -445,6 +445,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   synchroniseChannel: 0
+  type: 0
   synchronisePosition: 1
   synchroniseRotation: 1
   synchroniseScale: 1
@@ -605,6 +606,7 @@ GameObject:
   - component: {fileID: 1852147081}
   - component: {fileID: 1852147082}
   - component: {fileID: 1852147083}
+  - component: {fileID: 1852147084}
   m_Layer: 0
   m_Name: GameObject (1)
   m_TagString: Untagged
@@ -656,6 +658,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   synchroniseChannel: 2
+  type: 1
   synchronisePosition: 1
   synchroniseRotation: 1
   synchroniseScale: 1
@@ -665,10 +668,37 @@ MonoBehaviour:
   rotationTeleportThreshold: 90
   teleportScale: 1
   scaleTeleportThreshold: 1
-  useInterpolation: 1
+  useInterpolation: 0
   interpolationInterval: 0.05
-  useExtrapolation: 1
+  useExtrapolation: 0
   extrapolationInterval: 0.2
+--- !u!54 &1852147084
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1852147080}
+  serializedVersion: 4
+  m_Mass: 1
+  m_Drag: 0
+  m_AngularDrag: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 0
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!1 &2128803581
 GameObject:
   m_ObjectHideFlags: 0

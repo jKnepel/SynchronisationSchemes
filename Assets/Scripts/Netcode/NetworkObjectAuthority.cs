@@ -32,6 +32,9 @@ namespace jKnepel.SynchronisationSchemes
 
         public event Action OnOwnershipChanged;
         public event Action OnAuthorityChanged;
+
+        private Action<bool> OnOwnershipAnswered;
+        private Action<bool> OnAuthorityAnswered;
         
         // TODO : remove authority from disconnecting clients
 
@@ -39,8 +42,9 @@ namespace jKnepel.SynchronisationSchemes
         
         #region lifecycle
         
-        private void Awake()
+        protected new void Awake()
         {
+	        base.Awake();
             OnNetworkIDUpdated += NetworkIDUpdated;
             OnSyncNetworkManagerUpdated += NetworkIDUpdated;
             _networkObjectFlag = $"{NetworkID}#Authority";
@@ -53,10 +57,13 @@ namespace jKnepel.SynchronisationSchemes
         
         #region public methods
         
-		public void RequestOwnership()
+		public void RequestOwnership(Action<bool> onOwnershipAnswered = null)
 		{
 			if (OwnershipID != 0 || !IsActiveMode || (!_syncNetworkManager?.IsClient ?? true))
+			{
+				onOwnershipAnswered?.Invoke(false);
 				return;
+			}
 			
 			var clientID = _syncNetworkManager.Client.ClientID;
 			_ownershipSequence++;
@@ -69,11 +76,13 @@ namespace jKnepel.SynchronisationSchemes
 				SetTakeAuthority(clientID, _authoritySequence);
 				NetworkAuthorityPacket.Write(writer, packet);
 				_syncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
+				onOwnershipAnswered?.Invoke(true);
 			}
 			else
 			{
 				NetworkAuthorityPacket.Write(writer, packet);
 				_syncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
+				OnOwnershipAnswered = onOwnershipAnswered;
 			}
 		}
 
@@ -98,10 +107,13 @@ namespace jKnepel.SynchronisationSchemes
 			}
 		}
 
-		public void RequestAuthority()
+		public void RequestAuthority(Action<bool> onAuthorityAnswered = null)
 		{
 			if (OwnershipID != 0 || IsAuthor || !IsActiveMode || (!_syncNetworkManager?.IsClient ?? true))
+			{
+				onAuthorityAnswered?.Invoke(false);
 				return;
+			}
 
 			_authoritySequence++;
 			Writer writer = new();
@@ -111,11 +123,13 @@ namespace jKnepel.SynchronisationSchemes
 				SetTakeAuthority(_syncNetworkManager.Client.ClientID, _authoritySequence);
 				NetworkAuthorityPacket.Write(writer, packet);
 				_syncNetworkManager.Server.SendByteDataToAll(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
+				onAuthorityAnswered?.Invoke(false);
 			}
 			else
 			{
 				NetworkAuthorityPacket.Write(writer, packet);
 				_syncNetworkManager.Client.SendByteDataToServer(_networkObjectFlag, writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
+				OnAuthorityAnswered = onAuthorityAnswered;
 			}
 		}
 
@@ -277,6 +291,8 @@ namespace jKnepel.SynchronisationSchemes
             OwnershipID = clientID;
             _ownershipSequence = ownershipSequence;
             OnOwnershipChanged?.Invoke();
+	        OnOwnershipAnswered?.Invoke(clientID == _syncNetworkManager.Client.ClientID);
+	        OnOwnershipAnswered = null;
         }
 
         private void SetReleaseOwnership(ushort ownershipSequence)
@@ -291,6 +307,8 @@ namespace jKnepel.SynchronisationSchemes
             AuthorityID = clientID;
             _authoritySequence = authoritySequence;
             OnAuthorityChanged?.Invoke();
+            OnAuthorityAnswered?.Invoke(clientID == _syncNetworkManager.Client.ClientID);
+            OnAuthorityAnswered = null;
         }
 
         private void SetReleaseAuthority(ushort authoritySequence)
