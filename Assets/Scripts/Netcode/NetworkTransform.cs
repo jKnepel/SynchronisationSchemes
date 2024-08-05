@@ -102,7 +102,7 @@ namespace jKnepel.SynchronisationSchemes
                 var snapshot = _receivedSnapshots[^1];
                 if (useExtrapolation && _receivedSnapshots.Count >= 2 && (DateTime.Now - snapshot.Timestamp).TotalSeconds <= extrapolationInterval)
                 {
-                    target = LinearExtrapolateSnapshots(snapshot, _receivedSnapshots[^2], DateTime.Now);
+                    target = LinearExtrapolateSnapshots(_receivedSnapshots[^2], snapshot, DateTime.Now);
                 }
                 else
                 {
@@ -119,18 +119,18 @@ namespace jKnepel.SynchronisationSchemes
             var trf = transform;
             if (synchronisePosition)
             {
-                if (teleportPosition && Vector3.Distance(trf.position, target.Position) >= positionTeleportThreshold)
-                    trf.position = target.Position;
+                if (teleportPosition && Vector3.Distance(trf.localPosition, target.Position) >= positionTeleportThreshold)
+                    trf.localPosition = target.Position;
                 else
-                    trf.position = Vector3.MoveTowards(trf.position, target.Position, Time.deltaTime * moveMult);
+                    trf.localPosition = Vector3.MoveTowards(trf.localPosition, target.Position, Time.deltaTime * moveMult);
             }
 
             if (synchroniseRotation)
             {
-                if (teleportRotation && Quaternion.Angle(trf.rotation, target.Rotation) >= rotationTeleportThreshold)
-                    trf.rotation = target.Rotation;
+                if (teleportRotation && Quaternion.Angle(trf.localRotation, target.Rotation) >= rotationTeleportThreshold)
+                    trf.localRotation = target.Rotation;
                 else
-                    trf.rotation = Quaternion.RotateTowards(trf.rotation, target.Rotation, Time.deltaTime * moveMult);
+                    trf.localRotation = Quaternion.RotateTowards(trf.localRotation, target.Rotation, Time.deltaTime * moveMult);
             }
 
             if (synchroniseScale)
@@ -194,9 +194,9 @@ namespace jKnepel.SynchronisationSchemes
 
             var trf = transform;
             if (synchronisePosition)
-                pos = trf.position;
+                pos = trf.localPosition;
             if (synchroniseRotation)
-                rot = trf.rotation;
+                rot = trf.localRotation;
             if (synchroniseScale)
                 scale = trf.localScale;
             if (Type == ComponentType.Rigidbody)
@@ -244,8 +244,8 @@ namespace jKnepel.SynchronisationSchemes
                 SenderID = data.SenderID,
                 Tick = data.Tick,
                 Timestamp = data.Timestamp,
-                Position = packet.Position ?? trf.position,
-                Rotation = packet.Rotation ?? trf.rotation,
+                Position = packet.Position ?? trf.localPosition,
+                Rotation = packet.Rotation ?? trf.localRotation,
                 Scale = packet.Scale ?? trf.localScale,
                 LinearVelocity = packet.LinearVelocity ?? Vector3.zero,
                 AngularVelocity = packet.AngularVelocity ?? Vector3.zero
@@ -254,7 +254,7 @@ namespace jKnepel.SynchronisationSchemes
 
         private TargetTransform InterpolateTransform()
         {
-            var renderingTime = DateTime.Now.AddSeconds(-Mathf.Abs(interpolationInterval));
+            var renderingTime = DateTime.Now.AddSeconds(-interpolationInterval);
             // TODO : add rate multiplier depending on length of interpolation queue
 
             if (_receivedSnapshots[^1].Timestamp < renderingTime)
@@ -262,7 +262,7 @@ namespace jKnepel.SynchronisationSchemes
                 var snapshot = _receivedSnapshots[^1];
                 if (useExtrapolation && (renderingTime - snapshot.Timestamp).TotalSeconds <= extrapolationInterval)
                 {
-                    return LinearExtrapolateSnapshots(snapshot, _receivedSnapshots[^2], renderingTime);
+                    return LinearExtrapolateSnapshots(_receivedSnapshots[^2], snapshot, renderingTime);
                 }
                 
                 return new()
@@ -301,38 +301,54 @@ namespace jKnepel.SynchronisationSchemes
             };
         }
 
-        private static TargetTransform LinearExtrapolateSnapshots(ETransformSnapshot a, ETransformSnapshot b, DateTime time)
+        private static TargetTransform LinearExtrapolateSnapshots(ETransformSnapshot left, ETransformSnapshot right, DateTime time)
         {
-            var deltaTime = (float)(a.Timestamp - b.Timestamp).TotalSeconds;
-            var deltaPos = (a.Position - b.Position) / deltaTime;
-            var deltaRot = a.Rotation * Quaternion.Inverse(b.Rotation);
-            var deltaScale = (a.Scale - b.Scale) / deltaTime;
-            var deltaLinVel = (a.LinearVelocity - b.LinearVelocity) / deltaTime;
-            var deltaAngVel = (a.AngularVelocity - b.AngularVelocity) / deltaTime;
-                    
-            var extrapolateTime = (float)(time - a.Timestamp).TotalSeconds;
-            var targetPos = IsVector3NaN(deltaPos)
-                ? a.Position
-                : a.Position + deltaPos * extrapolateTime;
-            var targetRot = a.Rotation * Quaternion.Slerp(Quaternion.identity, deltaRot, extrapolateTime / deltaTime);
-            var targetScale = IsVector3NaN(deltaScale) 
-                ? a.Scale
-                : a.Scale + deltaScale * extrapolateTime;
-            var targetLinearVelocity = IsVector3NaN(deltaLinVel) 
-                ? a.LinearVelocity
-                : a.LinearVelocity + deltaLinVel * extrapolateTime;
-            var targetAngularVelocity = IsVector3NaN(deltaAngVel) 
-                ? a.AngularVelocity
-                : a.AngularVelocity + deltaScale * extrapolateTime;
-                    
+            var deltaTime = (float)(right.Timestamp - left.Timestamp).TotalSeconds;
+
+            if (deltaTime == 0)
+            {
+                return new()
+                {
+                    Position = right.Position,
+                    Rotation = right.Rotation,
+                    Scale = right.Scale,
+                    LinearVelocity = right.LinearVelocity,
+                    AngularVelocity = right.AngularVelocity
+                };
+            }
+            
+            var extrapolateTime = (float)(time - right.Timestamp).TotalSeconds;
+            
+            var deltaRot = right.Rotation * Quaternion.Inverse(left.Rotation);
+            var targetRot = right.Rotation * Quaternion.Slerp(Quaternion.identity, deltaRot, extrapolateTime / deltaTime);
+            // deltaRot.ToAngleAxis(out var angle, out var axis);
+            // var targetRot = Quaternion.AngleAxis((angle / deltaTime) * extrapolateTime, axis) * right.Rotation;
+            
+            var targetPos = LinearExtrapolateVector3(left.Position, right.Position, deltaTime, extrapolateTime);
+            var targetScale = LinearExtrapolateVector3(left.Scale, right.Scale, deltaTime, extrapolateTime);
+            var targetLinVel = LinearExtrapolateVector3(left.LinearVelocity, right.LinearVelocity, deltaTime, extrapolateTime);
+            var targetAngVel = LinearExtrapolateVector3(left.AngularVelocity, right.AngularVelocity, deltaTime, extrapolateTime);
+            
             return new()
             {
                 Position = targetPos,
                 Rotation = targetRot,
                 Scale = targetScale,
-                LinearVelocity = targetLinearVelocity,
-                AngularVelocity = targetAngularVelocity
+                LinearVelocity = targetLinVel,
+                AngularVelocity = targetAngVel
             };
+        }
+
+        private static Vector3 LinearExtrapolateVector3(Vector3 left, Vector3 right, float deltaTime, float extrapolateTime)
+        {
+            
+            var deltaVector = (right - left) / deltaTime;
+            
+            var targetVector = IsVector3NaN(deltaVector)
+                ? right
+                : right + deltaVector * extrapolateTime;
+            
+            return targetVector;
         }
 
         private static bool IsVector3NaN(Vector3 vector)
@@ -371,8 +387,6 @@ namespace jKnepel.SynchronisationSchemes
             public Vector3? LinearVelocity;
             public Vector3? AngularVelocity;
             
-            // TODO : ignore resting velocities
-
             public static ETransformPacket Read(Reader reader)
             {
                 var packet = new ETransformPacket();
