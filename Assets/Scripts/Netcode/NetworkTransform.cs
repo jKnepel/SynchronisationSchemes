@@ -341,13 +341,8 @@ namespace jKnepel.SynchronisationSchemes
 
         private static Vector3 LinearExtrapolateVector3(Vector3 left, Vector3 right, float deltaTime, float extrapolateTime)
         {
-            
             var deltaVector = (right - left) / deltaTime;
-            
-            var targetVector = IsVector3NaN(deltaVector)
-                ? right
-                : right + deltaVector * extrapolateTime;
-            
+            var targetVector = right + deltaVector * extrapolateTime;
             return targetVector;
         }
 

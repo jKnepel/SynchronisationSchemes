@@ -228,11 +228,11 @@
       "url": "https://packages.unity.com"
     },
     "jknepel.proteusnet": {
-      "version": "https://github.com/jKnepel/ProteusNet.git?path=Assets/ProteusNet",
+      "version": "https://github.com/jKnepel/ProteusNet.git#upm",
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "d439e0a7b589aafa2ea5308b7682c2051b1c7a2f"
+      "hash": "11c12b6cce8e0a5463467522a36693d904a113f2"
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",
