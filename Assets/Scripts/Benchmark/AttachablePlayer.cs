@@ -1,20 +1,16 @@
-using jKnepel.ProteusNet.Managing;
-using jKnepel.ProteusNet.Networking;
 using UnityEngine;
 
-namespace jKnepel.SynchronisationSchemes
+namespace jKnepel.SynchronisationSchemes.Benchmark
 {
     [RequireComponent(typeof(Rigidbody))]
     public class AttachablePlayer : MonoBehaviour
     {
         #region attributes
 
-        [SerializeField] private MonoNetworkManager networkManager;
         [SerializeField] private Rigidbody rb;
-
         [SerializeField] private float forceMult = 100;
 
-        private DefaultInputActions _input;
+        public Vector2 directionalInput = Vector2.zero;
 
         #endregion
 
@@ -24,15 +20,11 @@ namespace jKnepel.SynchronisationSchemes
         {
             if (rb == null)
                 rb = GetComponent<Rigidbody>();
-
-            _input = new();
-            networkManager.Client.OnLocalStateUpdated += LocalStateUpdated;
         }
 
         private void FixedUpdate()
         {
-            var dir = _input.gameplay.directional.ReadValue<Vector2>();
-            var delta = new Vector3(dir.x, 0, dir.y);
+            var delta = new Vector3(directionalInput.y, 0, directionalInput.x);
             rb.AddForce(forceMult * delta, ForceMode.Force);
         }
 
@@ -52,23 +44,6 @@ namespace jKnepel.SynchronisationSchemes
             att.Detach();
         }
 
-        #endregion
-        
-        #region private methods
-
-        private void LocalStateUpdated(ELocalClientConnectionState state)
-        {
-            switch (state)
-            {
-                case ELocalClientConnectionState.Authenticated:
-                    _input.Enable();
-                    break;
-                case ELocalClientConnectionState.Stopping:
-                    _input.Disable();
-                    break;
-            }
-        }
-        
         #endregion
     }
 }

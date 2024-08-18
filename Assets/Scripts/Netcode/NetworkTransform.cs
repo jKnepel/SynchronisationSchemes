@@ -1,6 +1,6 @@
 using jKnepel.ProteusNet.Managing;
 using jKnepel.ProteusNet.Networking;
-using jKnepel.ProteusNet.Serialising;
+using jKnepel.ProteusNet.Serializing;
 using System;
 using System.Collections.Generic;
 using Unity.VisualScripting;
@@ -306,7 +306,7 @@ namespace jKnepel.SynchronisationSchemes
             var deltaTime = (float)(right.Timestamp - left.Timestamp).TotalSeconds;
 
             if (deltaTime == 0)
-            {
+            {   // TODO : temporary fix for doubly received packets on focus
                 return new()
                 {
                     Position = right.Position,
@@ -321,8 +321,6 @@ namespace jKnepel.SynchronisationSchemes
             
             var deltaRot = right.Rotation * Quaternion.Inverse(left.Rotation);
             var targetRot = right.Rotation * Quaternion.Slerp(Quaternion.identity, deltaRot, extrapolateTime / deltaTime);
-            // deltaRot.ToAngleAxis(out var angle, out var axis);
-            // var targetRot = Quaternion.AngleAxis((angle / deltaTime) * extrapolateTime, axis) * right.Rotation;
             
             var targetPos = LinearExtrapolateVector3(left.Position, right.Position, deltaTime, extrapolateTime);
             var targetScale = LinearExtrapolateVector3(left.Scale, right.Scale, deltaTime, extrapolateTime);

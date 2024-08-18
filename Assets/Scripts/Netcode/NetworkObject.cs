@@ -64,7 +64,9 @@ namespace jKnepel.SynchronisationSchemes
         public INetworkManager SyncNetworkManager => SynchroniseMode switch
         {
             ESynchroniseMode.PlayMode when Application.isPlaying => PlayModeNetworkManager,
+#if UNITY_EDITOR
             ESynchroniseMode.EditMode when !Application.isPlaying => StaticNetworkManager.NetworkManager,
+#endif
             _ => null
         };
 

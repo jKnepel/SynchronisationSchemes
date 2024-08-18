@@ -1,7 +1,7 @@
 using System.Linq;
 using UnityEngine;
 
-namespace jKnepel.SynchronisationSchemes
+namespace jKnepel.SynchronisationSchemes.Benchmark
 {
     [RequireComponent(typeof(Rigidbody), typeof(NetworkObjectAuthority))]
     public class Attachable : MonoBehaviour
