@@ -48,6 +48,8 @@ namespace jKnepel.SynchronisationSchemes
             {
                 if (synchroniseMode == value) return;
                 synchroniseMode = value;
+                if (value == ESynchroniseMode.PlayMode && playModeManager is null)
+                    playModeManager = FindObjectOfType<MonoNetworkManager>();
                 OnSyncNetworkManagerUpdated?.Invoke();
             }
         }
@@ -59,7 +61,7 @@ namespace jKnepel.SynchronisationSchemes
             _ => false
         };
 
-        public virtual bool ShouldSynchronise => IsActiveMode && SyncNetworkManager is not null && SyncNetworkManager.IsServer;
+        public virtual bool ShouldSynchronise => IsActiveMode && (SyncNetworkManager?.IsServer ?? false);
 
         public INetworkManager SyncNetworkManager => SynchroniseMode switch
         {

@@ -59,6 +59,12 @@ namespace jKnepel.SynchronisationSchemes
         
 		public void RequestOwnership(Action<bool> onOwnershipAnswered = null)
 		{
+			if (IsOwner)
+			{
+				onOwnershipAnswered?.Invoke(true);
+				return;
+			}
+			
 			if (OwnershipID != 0 || !IsActiveMode || (!_syncNetworkManager?.IsClient ?? true))
 			{
 				onOwnershipAnswered?.Invoke(false);
@@ -109,7 +115,13 @@ namespace jKnepel.SynchronisationSchemes
 
 		public void RequestAuthority(Action<bool> onAuthorityAnswered = null)
 		{
-			if (OwnershipID != 0 || IsAuthor || !IsActiveMode || (!_syncNetworkManager?.IsClient ?? true))
+			if (IsAuthor)
+			{
+				onAuthorityAnswered?.Invoke(true);
+				return;
+			}
+			
+			if (OwnershipID != 0 || !IsActiveMode || (!_syncNetworkManager?.IsClient ?? true))
 			{
 				onAuthorityAnswered?.Invoke(false);
 				return;

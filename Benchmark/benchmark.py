@@ -9,9 +9,11 @@ LoadScene = b'\x00'
 UnloadScene = b'\x01'
 StartHost = b'\x02'
 StartClient = b'\x03'
-GetBenchmark = b'\x04'
-DirectionalInput = b'\x05'
-SetObjectNumber = b'\x06'
+StopHost = b'\x04'
+StopClient = b'\x05'
+GetBenchmark = b'\x06'
+DirectionalInput = b'\x07'
+SetObjectNumber = b'\x08'
 
 exe_path = r"../Builds/SynchronisationSchemes.exe"
 warmup_runs = 10
@@ -33,7 +35,7 @@ def main():
     process2_socket.connect(('localhost', port2))
     time.sleep(2) # load sockets
 
-    benchmark(process1_socket, process2_socket, 'AttachableSimulationScene', 10)
+    benchmark(process1_socket, process2_socket, 'LocalSimulation', 10)
 
     process1.terminate()
     process2.terminate()
@@ -50,8 +52,8 @@ def benchmark(process1: socket, process2: socket, scene: str, number_objects: in
         process1.sendall(StartHost + struct.pack('B', 0))
         process2.sendall(StartClient + struct.pack('B', 0))
 
-        directional_input(process1, 1.0, 0, 5)
-        directional_input(process1, 0, 0.5, 2)
+        directional_input(process2, 1.0, 0, 5)
+        directional_input(process2, 0, 0.5, 2)
 
         #response = client_socket.recv(1024)
         #print(f"Received: {response.decode('utf-8')}")

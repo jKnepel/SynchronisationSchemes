@@ -3,14 +3,13 @@ using UnityEngine;
 
 namespace jKnepel.SynchronisationSchemes.Benchmark
 {
-    [RequireComponent(typeof(Rigidbody), typeof(NetworkObjectAuthority))]
+    [RequireComponent(typeof(Rigidbody))]
     public class Attachable : MonoBehaviour
     {
         #region attributes
 
-        [SerializeField] private NetworkObjectAuthority networkObject;
         [SerializeField] private Rigidbody rb;
-        [SerializeField] private float gravitationalPull = 3000;
+        [SerializeField] private float gravitationalPull;
         [SerializeField] private bool isAttached;
         
         private Transform _attachedTo;
@@ -28,8 +27,6 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
 
         private void Awake()
         {
-            if (networkObject == null)
-                networkObject = GetComponent<NetworkObjectAuthority>();
             if (rb == null)
                 rb = GetComponent<Rigidbody>();
         }
@@ -48,15 +45,7 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
 
         #region public methods
 
-        public void Attach(Transform trf)
-        {
-            if (IsAttached)
-                return;
-
-            networkObject.RequestOwnership(success => Attach(success, trf));
-        }
-
-        private void Attach(bool success, Transform trf)
+        public void Attach(bool success, Transform trf)
         {
             if (!success || IsAttached)
                 return;
@@ -71,14 +60,11 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
             if (!IsAttached)
                 return;
 
-            networkObject.ReleaseOwnership();
             IsAttached = false;
             _attachedTo = null;
             _maxDistance = 0;
         }
         
-        // TODO : add authority grab on collision
-
         #endregion
 
         #region private methods

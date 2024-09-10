@@ -1,10 +1,10 @@
+using jKnepel.ProteusNet.Serializing;
 using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
-using jKnepel.ProteusNet.Serializing;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -18,11 +18,13 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
             UnloadScene,
             StartHost,
             StartClient,
+            StopHost,
+            StopClient,
             GetBenchmark,
             DirectionalInput,
             SetObjectNumber
         }
-        
+
         private TcpListener _tcpListener;
         private bool _isRunning;
         
@@ -77,7 +79,7 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
         
         private async Task HandleClientAsync(TcpClient client)
         {
-            Debug.Log("Client connected.");
+            Debug.Log("TCP Client connected.");
 
             using (var stream = client.GetStream())
             using (var memoryStream = new MemoryStream())
@@ -92,7 +94,7 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
                 }
             }
 
-            Debug.Log("Client disconnected.");
+            Debug.Log("TCP Client disconnected.");
             client.Close();
         }
         
@@ -152,15 +154,31 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
                 case CommunicationFlags.StartHost:
                 {
                     if (_sceneData is null) return;
-                    _sceneData.NetworkManager.StartHost();
+                    if (_sceneData.NetworkManager)
+                        _sceneData.NetworkManager.StartHost();
                     _sceneData.Spawner.SpawnObjects();
                     break;
                 }
                 case CommunicationFlags.StartClient:
                 {
                     if (_sceneData is null) return;
-                    _sceneData.NetworkManager.StartClient();
+                    if (_sceneData.NetworkManager)
+                        _sceneData.NetworkManager.StartClient();
                     _sceneData.Spawner.SpawnObjects();
+                    break;
+                }
+                case CommunicationFlags.StopHost:
+                {
+                    if (_sceneData is null) return;
+                    if (_sceneData.NetworkManager)
+                        _sceneData.NetworkManager.StopHost();
+                    break;
+                }
+                case CommunicationFlags.StopClient:
+                {
+                    if (_sceneData is null) return;
+                    if (_sceneData.NetworkManager)
+                        _sceneData.NetworkManager.StopClient();
                     break;
                 }
                 case CommunicationFlags.GetBenchmark:

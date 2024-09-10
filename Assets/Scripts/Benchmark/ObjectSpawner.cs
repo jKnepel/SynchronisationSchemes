@@ -13,7 +13,7 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
         public float spawnDistance = 2.0f;
 
         private GameObject[] _objects;
-        
+
         public void SpawnObjects()
         {
             _objects = new GameObject[numberOfObjects];

@@ -9,7 +9,13 @@ EditorBuildSettings:
     path: Assets/Scenes/Benchmark.unity
     guid: 431c1034436878249b89f4cd3725d8ca
   - enabled: 1
-    path: Assets/Scenes/AttachableSimulationScene.unity
+    path: Assets/Scenes/LocalSimulation.unity
+    guid: c13f23260d4229a46a11192486536ab8
+  - enabled: 1
+    path: Assets/Scenes/AuthoritativeSimulation.unity
     guid: 6a481c858c4c94640817b50eb359df83
+  - enabled: 1
+    path: Assets/Scenes/ClientServerSimulation.unity
+    guid: 09de3334ffbcb244ca973041464bf7fa
   m_configObjects:
     com.unity.input.settings: {fileID: 11400000, guid: a26c11309c918d546ab57a155a01f966, type: 2}

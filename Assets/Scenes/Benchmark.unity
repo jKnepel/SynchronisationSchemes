@@ -167,10 +167,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f8800150426cbae4ca2f211fa8ac61dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  manager: {fileID: 0}
-  startServerKey: 101
-  startClientKey: 114
-  exportStatsKey: 116
+  _port: 9989
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

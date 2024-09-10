@@ -13,11 +13,9 @@ GameObject:
   - component: {fileID: 3204504873891019023}
   - component: {fileID: 7259911429127690553}
   - component: {fileID: 64366661066845297}
-  - component: {fileID: 5148754780444866935}
   - component: {fileID: 3002370850743535297}
-  - component: {fileID: 4260651612386566787}
   m_Layer: 0
-  m_Name: Cube
+  m_Name: Attachable
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -66,7 +64,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
+  - {fileID: 2100000, guid: 1f2b6b3b979659c4c9aa1558b19f7a04, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -136,21 +134,6 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &5148754780444866935
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3486250428610655637}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 211776ca8dd935442ae27f55c8d1d3d3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  networkID: 
-  playModeManager: {fileID: 0}
-  synchroniseMode: 0
 --- !u!114 &3002370850743535297
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -163,34 +146,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 40bd9068b5c766944aca031a1ace0b13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  networkObject: {fileID: 5148754780444866935}
   rb: {fileID: 64366661066845297}
   gravitationalPull: 300
   isAttached: 0
---- !u!114 &4260651612386566787
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3486250428610655637}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: eda77348e5e436348bd532574e8a04b8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  synchroniseChannel: 2
-  type: 1
-  synchronisePosition: 1
-  synchroniseRotation: 1
-  synchroniseScale: 1
-  teleportPosition: 1
-  positionTeleportThreshold: 1
-  teleportRotation: 1
-  rotationTeleportThreshold: 90
-  teleportScale: 1
-  scaleTeleportThreshold: 1
-  useInterpolation: 1
-  interpolationInterval: 0.06
-  useExtrapolation: 0
-  extrapolationInterval: 0.2

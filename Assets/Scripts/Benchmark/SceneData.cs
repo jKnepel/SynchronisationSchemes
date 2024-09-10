@@ -6,8 +6,7 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
     public class SceneData : MonoBehaviour
     {
         public MonoNetworkManager NetworkManager;
-        public AttachablePlayer Player;
+        public Player Player;
         public ObjectSpawner Spawner;
-        public BenchmarkController Controller;
     }
 }
