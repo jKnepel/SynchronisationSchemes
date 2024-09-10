@@ -35,7 +35,7 @@ def main():
     process2_socket.connect(('localhost', port2))
     time.sleep(2) # load sockets
 
-    benchmark(process1_socket, process2_socket, 'LocalSimulation', 10)
+    benchmark(process1_socket, process2_socket, 'ClientServerSimulation', 10)
 
     process1.terminate()
     process2.terminate()

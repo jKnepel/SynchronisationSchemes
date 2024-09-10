@@ -8,7 +8,6 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
     public class PlayerClientServer : Player
     {
         private NetworkObject _object;
-        private Vector2 _lastInput = Vector2.zero;
 
         #region lifecycle
 
@@ -30,17 +29,16 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
                 var delta = new Vector3(directionalInput.y, 0, directionalInput.x);
                 _rb.AddForce(forceMult * delta, ForceMode.Force);
             }
-            else if (!_lastInput.Equals(directionalInput))
+            else
             {
                 PlayerInput input = new()
                 {
-                    Horizontal = directionalInput.y,
-                    Vertical = directionalInput.x
+                    X = directionalInput.x,
+                    Y = directionalInput.y
                 };
                 Writer writer = new();
                 PlayerInput.Write(input, writer);
-                _object.SyncNetworkManager.Client.SendByteDataToServer("input", writer.GetBuffer(), ENetworkChannel.ReliableOrdered);
-                _lastInput = directionalInput;
+                _object.SyncNetworkManager.Client.SendByteDataToServer("input", writer.GetBuffer(), ENetworkChannel.UnreliableOrdered);
             }
         }
 
@@ -66,29 +64,28 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
         {
             Reader reader = new(data.Data);
             var input = PlayerInput.Read(reader);
-            var delta = new Vector3(input.Horizontal, 0, input.Vertical);
-            _rb.AddForce(forceMult * delta, ForceMode.Force);
+            directionalInput = new(input.X, input.Y);
         }
 
         #endregion
 
         private struct PlayerInput
         {
-            public float Horizontal;
-            public float Vertical;
+            public float X;
+            public float Y;
 
             public static void Write(PlayerInput input, Writer writer)
             {
-                writer.WriteSingle(input.Horizontal);
-                writer.WriteSingle(input.Vertical);
+                writer.WriteSingle(input.X);
+                writer.WriteSingle(input.Y);
             }
 
             public static PlayerInput Read(Reader reader)
             {
                 return new()
                 {
-                    Horizontal = reader.ReadSingle(),
-                    Vertical = reader.ReadSingle()
+                    X = reader.ReadSingle(),
+                    Y = reader.ReadSingle()
                 };
             }
         }
