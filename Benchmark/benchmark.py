@@ -27,9 +27,10 @@ SetObjectNumber = b'\x08'
 def main():
     # Benchmark attributes
     exe_path = r"../Builds/SynchronisationSchemes.exe"
-    warmup_runs = 10
-    runs = 10
-    number_of_objects = 50
+    warmups = 0
+    runs = 1
+    start_objects = 1
+    end_objects = 10
     port1 = 9989
     port2 = 9990
 
@@ -61,8 +62,8 @@ def main():
     time.sleep(2)
 
     # Benchmark
-    benchmark_wrapper('benchmark.csv', 'AuthoritativeSimulation', number_of_objects, process1_socket, window1, process2_socket, window2)
-    #benchmark_wrapper('benchmark.csv', 'ClientServerSimulation', number_of_objects, process1_socket, window1, process2_socket, window2)
+    benchmark_wrapper('benchmark', 'AuthoritativeSimulation', warmups, runs, start_objects, end_objects, process1_socket, window1, process2_socket, window2)
+    #benchmark_wrapper('benchmark', 'ClientServerSimulation', number_of_objects, process1_socket, window1, process2_socket, window2)
 
     # Cleanup
     process1_socket.close()
@@ -70,15 +71,29 @@ def main():
     process1.terminate()
     process2.terminate()
 
-def benchmark_wrapper(file_path: str, scene: str, number_objects: int, process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification):
-    with open(file_path, mode='a') as file:
+def benchmark_wrapper(file_path: str, scene: str, warmups: int, runs: int, start_objects: int, end_objects: int, process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification):
+    with open(file_path + '.csv', mode='a') as file:
         file.write(f",{scene}-incoming,{scene}-outgoing\n")
 
-        benchmark_duration, incoming_bytes, outgoing_bytes = benchmark(scene, number_objects, process1, window1, process2, window2)
+        # Repeat the benchmark for the range of desired objects
+        for number_objects in range(start_objects, end_objects + 1, 1):
+            total_duration = 0
+            total_incoming = 0
+            total_outgoing = 0
 
-        incoming_mbps = (incoming_bytes * 8) / (benchmark_duration / 1000) / 1000000
-        outgoing_mbps = (outgoing_bytes * 8) / (benchmark_duration / 1000) / 1000000
-        file.write(f"{number_objects},{incoming_mbps},{outgoing_mbps}\n")
+            # Repeat the benchmark by warmups and runs to lower result volatility 
+            for x in range(1, warmups + runs + 1, 1):
+                benchmark_duration, incoming_bytes, outgoing_bytes = benchmark(scene, number_objects, process1, window1, process2, window2)
+
+                # Ignore warmup results    
+                if (x > warmups):
+                    total_duration += benchmark_duration
+                    total_incoming += incoming_bytes
+                    total_outgoing += outgoing_bytes
+            
+            incoming_mbps = (total_incoming * 8) / (total_duration / 1000) / 1000000
+            outgoing_mbps = (total_outgoing * 8) / (total_duration / 1000) / 1000000
+            file.write(f"{number_objects},{incoming_mbps},{outgoing_mbps}\n")
 
 def benchmark(scene: str, number_objects: int, process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification) -> tuple[int, int, int]:
     scene_bytes = scene.encode('utf-8')
@@ -93,9 +108,10 @@ def benchmark(scene: str, number_objects: int, process1: socket, window1: Window
     time.sleep(1) # wait for network to be started
 
     # Create the visual comparison thread
+    fps = 10
     cancellation_event = threading.Event()
     cancellation_event.clear()
-    benchmark_thread = threading.Thread(target=capture_and_compare_videos, args=(window1, window2, cancellation_event, 10))
+    benchmark_thread = threading.Thread(target=capture_and_compare_videos, args=(window1, window2, cancellation_event, fps))
     benchmark_thread.start()
 
     # Client inputs for the benchmark
