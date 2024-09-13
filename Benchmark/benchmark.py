@@ -44,11 +44,11 @@ def main():
     app1 = Application().connect(process=process1.pid)
     window1 = app1.top_window()
     window1.set_focus()
-    #window1.move_window(x=0, y=0, width=screen_width // 2, height=available_height)
+    window1.move_window(x=0, y=0, width=screen_width // 2, height=available_height)
     app2 = Application().connect(process=process2.pid)
     window2 = app2.top_window()
     window2.set_focus()
-    #window2.move_window(x=screen_width // 2, y=0, width=screen_width // 2, height=available_height)
+    window2.move_window(x=screen_width // 2, y=0, width=screen_width // 2, height=available_height)
 
     # establish tcp socket for communicating with benchmark controller
     process1_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -59,7 +59,7 @@ def main():
 
     # benchmark
     number_of_objects = 10
-    benchmark(process1_socket, window1, process2_socket, window2, 'AuthoritativeSimulation', number_of_objects)
+    #benchmark(process1_socket, window1, process2_socket, window2, 'AuthoritativeSimulation', number_of_objects)
     benchmark(process1_socket, window1, process2_socket, window2, 'ClientServerSimulation', number_of_objects)
 
     process1_socket.close()
@@ -81,7 +81,7 @@ def benchmark(process1: socket, window1: WindowSpecification, process2: socket, 
 
     cancellation_event = threading.Event()
     cancellation_event.clear()
-    benchmark_thread = threading.Thread(target=capture_and_compare_screenshots, args=(window1, window2, 1, cancellation_event))
+    benchmark_thread = threading.Thread(target=capture_and_compare_videos, args=(window1, window2, cancellation_event, 10))
     benchmark_thread.start()
 
     directional_input(process2, 1.0, 0, 2)
@@ -116,54 +116,84 @@ def get_screen_size() -> tuple[int, int]:
 
     return screen_width, available_height
 
-def capture_window_screenshot(window: WindowSpecification, filename: str) -> str:
-    window.set_focus()
+def get_window_size(window: WindowSpecification):
+    # Get the client area rectangle of the window
+    client_rect = win32gui.GetClientRect(window.handle)
+    width = client_rect[2] - client_rect[0]
+    height = client_rect[3] - client_rect[1]
+    return width, height
+
+def capture_window_frame(window: WindowSpecification) -> cv2.typing.MatLike:
     hwnd = window.handle
     # Get the client area rectangle
     client_rect = win32gui.GetClientRect(hwnd)
-    
+
     # Convert client area coordinates to screen coordinates
     client_to_screen = win32gui.ClientToScreen(hwnd, (client_rect[0], client_rect[1]))
     left = client_to_screen[0]
     top = client_to_screen[1]
     right = left + client_rect[2]
     bottom = top + client_rect[3]
-    
-    # Capture the screenshot of the client area
-    screenshot = ImageGrab.grab(bbox=(left, top, right, bottom))
-    screenshot.save(filename)
-    return filename
 
-def compute_image_difference(img1_path: str, img2_path: str) -> float:
-    # Load images
-    img1 = cv2.imread(img1_path, cv2.IMREAD_GRAYSCALE)
-    img2 = cv2.imread(img2_path, cv2.IMREAD_GRAYSCALE)
+    # Capture the screenshot of the client area as a frame (RGB image)
+    screenshot = ImageGrab.grab(bbox=(left, top, right, bottom))
+
+    # Convert the screenshot to a numpy array (frame) for OpenCV
+    frame = np.array(screenshot)
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # Convert from RGB to BGR for OpenCV
+    return frame
+
+def compute_frame_difference(frame1: cv2.typing.MatLike, frame2: cv2.typing.MatLike):
+    # Convert both frames to grayscale
+    gray1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
     
-    # Compute absolute difference
-    difference = cv2.absdiff(img1, img2)
+    # Compute the absolute difference between the two frames
+    difference = cv2.absdiff(gray1, gray2)
     
-    # Compute percentage difference
+    # Compute the percentage of non-zero pixels in the difference image
     non_zero_count = np.count_nonzero(difference)
     total_pixels = difference.size
     percent_difference = (non_zero_count / total_pixels) * 100
     
     return percent_difference
 
-def capture_and_compare_screenshots(window1: WindowSpecification, window2: WindowSpecification, interval: int, cancellation_event: threading.Event):
+def capture_and_compare_videos(window1: WindowSpecification, window2: WindowSpecification, cancellation_event: threading.Event, fps=10):
+    # Initialize video writers for both windows
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out1 = cv2.VideoWriter("output1.avi", fourcc, fps, get_window_size(window1))
+    out2 = cv2.VideoWriter("output2.avi", fourcc, fps, get_window_size(window2))
+
+    total_difference = 0.0
+    frame_count = 0
     while not cancellation_event.is_set():
-        timestamp = int(time.time())
-        filename1 = f"screenshot1.png"
-        filename2 = f"screenshot2.png"
+        # Capture frames
+        frame1 = capture_window_frame(window1)
+        frame2 = capture_window_frame(window2)
+
+        # Write frames to video files
+        out1.write(frame1)
+        out2.write(frame2)
+
+        # Compare frames
+        difference = compute_frame_difference(frame1, frame2)
+        # print(f"Difference: {difference}%")
         
-        # Capture screenshots
-        capture_window_screenshot(window1, filename1)
-        capture_window_screenshot(window2, filename2)
-        
-        # Compute image difference
-        difference = compute_image_difference(filename1, filename2)
-        print(f"Timestamp: {timestamp}, Difference: {difference}%")
-        
-        time.sleep(interval)
+        total_difference += difference
+        frame_count += 1
+        time.sleep(1 / fps)
+
+    if frame_count > 0:
+        average_difference = total_difference / frame_count
+    else:
+        average_difference = 0.0
+
+    # Release the video writer objects
+    out1.release()
+    out2.release()
+    
+    print(average_difference)
+    print(f"Videos saved")
 
 def directional_input(socket: socket, up: float, right: float, duration: float):
     socket.sendall(DirectionalInput + struct.pack('B', 8) + struct.pack('f', up) + struct.pack('f', right))
