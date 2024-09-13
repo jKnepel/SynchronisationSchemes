@@ -13,33 +13,25 @@ from PIL import ImageGrab
 from pywinauto import Application
 from pywinauto import WindowSpecification
 
-LoadScene = b'\x00'
-UnloadScene = b'\x01'
-StartHost = b'\x02'
-StartClient = b'\x03'
-StopHost = b'\x04'
-StopClient = b'\x05'
-GetBenchmark = b'\x06'
-DirectionalInput = b'\x07'
-SetObjectNumber = b'\x08'
-
+# Benchmark attributes
 exe_path = r"../Builds/SynchronisationSchemes.exe"
+number_of_objects = 50
 warmup_runs = 10
 runs = 10
+port1 = 9989
+port2 = 9990
 
 def main():
-    # change working directory to current file
+    # Change working directory to current file
     script_directory = os.path.dirname(os.path.abspath(__file__)) 
     os.chdir(script_directory)
 
-    # load processes with correct port
-    port1 = 9989
-    port2 = 9990
+    # Load processes with correct port
     process1 = subprocess.Popen([exe_path, str(port1)])
     process2 = subprocess.Popen([exe_path, str(port2)])
     time.sleep(5)
 
-    # place both processes on main desktop side by side
+    # Place both processes on main desktop side by side
     screen_width, available_height = get_screen_size()
     app1 = Application().connect(process=process1.pid)
     window1 = app1.top_window()
@@ -50,22 +42,33 @@ def main():
     window2.set_focus()
     window2.move_window(x=screen_width // 2, y=0, width=screen_width // 2, height=available_height)
 
-    # establish tcp socket for communicating with benchmark controller
+    # Establish tcp socket for communicating with benchmark controller
     process1_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     process1_socket.connect(('localhost', port1))
     process2_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     process2_socket.connect(('localhost', port2))
     time.sleep(2)
 
-    # benchmark
-    number_of_objects = 10
-    #benchmark(process1_socket, window1, process2_socket, window2, 'AuthoritativeSimulation', number_of_objects)
+    # Benchmark
+    benchmark(process1_socket, window1, process2_socket, window2, 'AuthoritativeSimulation', number_of_objects)
     benchmark(process1_socket, window1, process2_socket, window2, 'ClientServerSimulation', number_of_objects)
 
+    # Cleanup
     process1_socket.close()
     process2_socket.close()
     process1.terminate()
     process2.terminate()
+
+# TCP Flags
+LoadScene = b'\x00'
+UnloadScene = b'\x01'
+StartHost = b'\x02'
+StartClient = b'\x03'
+StopHost = b'\x04'
+StopClient = b'\x05'
+GetBenchmark = b'\x06'
+DirectionalInput = b'\x07'
+SetObjectNumber = b'\x08'
 
 def benchmark(process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification, scene: str, number_objects: int):
     scene_bytes = scene.encode('utf-8')
@@ -77,23 +80,37 @@ def benchmark(process1: socket, window1: WindowSpecification, process2: socket, 
     process2.sendall(SetObjectNumber + struct.pack('B', 4) + struct.pack('I', number_objects))
     process1.sendall(StartHost + struct.pack('B', 0))
     process2.sendall(StartClient + struct.pack('B', 0))
-    time.sleep(1)
+    time.sleep(1) # wait for network to be started
 
+    # Create the visual comparison thread
     cancellation_event = threading.Event()
     cancellation_event.clear()
     benchmark_thread = threading.Thread(target=capture_and_compare_videos, args=(window1, window2, cancellation_event, 10))
     benchmark_thread.start()
 
-    directional_input(process2, 1.0, 0, 2)
+    # Client inputs for the benchmark
+    directional_input(process2, 1.0, 0, 10)
     directional_input(process2, 0.8, 0.5, 3)
     directional_input(process2, 0, 0.5, 2)
-    directional_input(process2, -0.2, -0.5, 10)
+    directional_input(process2, -0.3, -0.6, 9)
 
     cancellation_event.set()
     benchmark_thread.join()
 
-    #response = client_socket.recv(1024)
-    #print(f"Received: {response.decode('utf-8')}")
+    # Retrieve the results via the socket
+    process2.sendall(GetBenchmark + struct.pack('B', 0))
+    data_format = '<iQQ'
+    data_size = struct.calcsize(data_format)
+    data = b""
+    while len(data) < data_size: # wait until all data is streamed
+        packet = process2.recv(data_size - len(data))
+        if not packet:
+            break
+        data += packet
+    benchmark_duration, incoming_bytes, outgoing_bytes = struct.unpack(data_format, data)
+
+    print(f"Result: {benchmark_duration} {incoming_bytes} {outgoing_bytes}")
+
     process1.sendall(UnloadScene + struct.pack('B', 0))
     process2.sendall(UnloadScene + struct.pack('B', 0))
     time.sleep(5)
@@ -193,7 +210,6 @@ def capture_and_compare_videos(window1: WindowSpecification, window2: WindowSpec
     out2.release()
     
     print(average_difference)
-    print(f"Videos saved")
 
 def directional_input(socket: socket, up: float, right: float, duration: float):
     socket.sendall(DirectionalInput + struct.pack('B', 8) + struct.pack('f', up) + struct.pack('f', right))

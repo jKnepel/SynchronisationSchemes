@@ -27,9 +27,12 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
 
         private TcpListener _tcpListener;
         private bool _isRunning;
+        private TcpClient _client;
         
         private Scene _currentScene;
         private SceneData _sceneData;
+
+        private DateTime _startTime;
 
         private void Start()
         {
@@ -69,8 +72,8 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
             {
                 try
                 {
-                    var client = await _tcpListener.AcceptTcpClientAsync();
-                    _ = HandleClientAsync(client);
+                    _client = await _tcpListener.AcceptTcpClientAsync();
+                    _ = HandleClientAsync(_client);
                 }
                 catch (SocketException e)
                 {
@@ -159,6 +162,7 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
                     if (_sceneData.NetworkManager)
                         _sceneData.NetworkManager.StartHost();
                     _sceneData.Spawner.SpawnObjects();
+                    _startTime = DateTime.Now;;
                     break;
                 }
                 case CommunicationFlags.StartClient:
@@ -167,6 +171,7 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
                     if (_sceneData.NetworkManager)
                         _sceneData.NetworkManager.StartClient();
                     _sceneData.Spawner.SpawnObjects();
+                    _startTime = DateTime.Now;;
                     break;
                 }
                 case CommunicationFlags.StopHost:
@@ -174,6 +179,7 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
                     if (_sceneData is null) return;
                     if (_sceneData.NetworkManager)
                         _sceneData.NetworkManager.StopHost();
+                    _startTime = default;
                     break;
                 }
                 case CommunicationFlags.StopClient:
@@ -181,11 +187,26 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
                     if (_sceneData is null) return;
                     if (_sceneData.NetworkManager)
                         _sceneData.NetworkManager.StopClient();
+                    _startTime = default;
                     break;
                 }
                 case CommunicationFlags.GetBenchmark:
                 {
+                    if (_sceneData is null || _sceneData.NetworkManager is null || _client is null) return;
                     
+                    var endTime = DateTime.Now;
+                    ulong incoming = 0, outgoing = 0;
+                    foreach (var stat in _sceneData.NetworkManager.Logger.ClientTrafficStats)
+                    {
+                        incoming += stat.IncomingBytes;
+                        outgoing += stat.OutgoingBytes;
+                    }
+
+                    Writer writer = new(new() { UseCompression = false });
+                    writer.WriteInt32((endTime - _startTime).Milliseconds);
+                    writer.WriteUInt64(incoming);
+                    writer.WriteUInt64(outgoing);
+                    _client.GetStream().Write(writer.GetBuffer(), 0, writer.Length);
                     break;
                 }
                 case CommunicationFlags.DirectionalInput:
