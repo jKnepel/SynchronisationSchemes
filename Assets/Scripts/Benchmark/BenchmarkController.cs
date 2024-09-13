@@ -203,7 +203,7 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
                     }
 
                     Writer writer = new(new() { UseCompression = false });
-                    writer.WriteInt32((endTime - _startTime).Milliseconds);
+                    writer.WriteInt32((int)(endTime - _startTime).TotalMilliseconds);
                     writer.WriteUInt64(incoming);
                     writer.WriteUInt64(outgoing);
                     _client.GetStream().Write(writer.GetBuffer(), 0, writer.Length);

@@ -13,15 +13,26 @@ from PIL import ImageGrab
 from pywinauto import Application
 from pywinauto import WindowSpecification
 
-# Benchmark attributes
-exe_path = r"../Builds/SynchronisationSchemes.exe"
-number_of_objects = 50
-warmup_runs = 10
-runs = 10
-port1 = 9989
-port2 = 9990
+# TCP Flags
+LoadScene = b'\x00'
+UnloadScene = b'\x01'
+StartHost = b'\x02'
+StartClient = b'\x03'
+StopHost = b'\x04'
+StopClient = b'\x05'
+GetBenchmark = b'\x06'
+DirectionalInput = b'\x07'
+SetObjectNumber = b'\x08'
 
 def main():
+    # Benchmark attributes
+    exe_path = r"../Builds/SynchronisationSchemes.exe"
+    warmup_runs = 10
+    runs = 10
+    number_of_objects = 50
+    port1 = 9989
+    port2 = 9990
+
     # Change working directory to current file
     script_directory = os.path.dirname(os.path.abspath(__file__)) 
     os.chdir(script_directory)
@@ -50,8 +61,8 @@ def main():
     time.sleep(2)
 
     # Benchmark
-    benchmark(process1_socket, window1, process2_socket, window2, 'AuthoritativeSimulation', number_of_objects)
-    benchmark(process1_socket, window1, process2_socket, window2, 'ClientServerSimulation', number_of_objects)
+    benchmark_wrapper('benchmark.csv', 'AuthoritativeSimulation', number_of_objects, process1_socket, window1, process2_socket, window2)
+    #benchmark_wrapper('benchmark.csv', 'ClientServerSimulation', number_of_objects, process1_socket, window1, process2_socket, window2)
 
     # Cleanup
     process1_socket.close()
@@ -59,18 +70,17 @@ def main():
     process1.terminate()
     process2.terminate()
 
-# TCP Flags
-LoadScene = b'\x00'
-UnloadScene = b'\x01'
-StartHost = b'\x02'
-StartClient = b'\x03'
-StopHost = b'\x04'
-StopClient = b'\x05'
-GetBenchmark = b'\x06'
-DirectionalInput = b'\x07'
-SetObjectNumber = b'\x08'
+def benchmark_wrapper(file_path: str, scene: str, number_objects: int, process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification):
+    with open(file_path, mode='a') as file:
+        file.write(f",{scene}-incoming,{scene}-outgoing\n")
 
-def benchmark(process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification, scene: str, number_objects: int):
+        benchmark_duration, incoming_bytes, outgoing_bytes = benchmark(scene, number_objects, process1, window1, process2, window2)
+
+        incoming_mbps = (incoming_bytes * 8) / (benchmark_duration / 1000) / 1000000
+        outgoing_mbps = (outgoing_bytes * 8) / (benchmark_duration / 1000) / 1000000
+        file.write(f"{number_objects},{incoming_mbps},{outgoing_mbps}\n")
+
+def benchmark(scene: str, number_objects: int, process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification) -> tuple[int, int, int]:
     scene_bytes = scene.encode('utf-8')
     process1.sendall(LoadScene + struct.pack('B', len(scene_bytes)) + scene_bytes)
     process2.sendall(LoadScene + struct.pack('B', len(scene_bytes)) + scene_bytes)
@@ -109,11 +119,11 @@ def benchmark(process1: socket, window1: WindowSpecification, process2: socket, 
         data += packet
     benchmark_duration, incoming_bytes, outgoing_bytes = struct.unpack(data_format, data)
 
-    print(f"Result: {benchmark_duration} {incoming_bytes} {outgoing_bytes}")
-
     process1.sendall(UnloadScene + struct.pack('B', 0))
     process2.sendall(UnloadScene + struct.pack('B', 0))
-    time.sleep(5)
+    time.sleep(1)
+
+    return benchmark_duration, incoming_bytes, outgoing_bytes
 
 def get_screen_size() -> tuple[int, int]:
     user32 = ctypes.windll.user32
@@ -133,7 +143,7 @@ def get_screen_size() -> tuple[int, int]:
 
     return screen_width, available_height
 
-def get_window_size(window: WindowSpecification):
+def get_window_size(window: WindowSpecification) -> tuple[int, int]:
     # Get the client area rectangle of the window
     client_rect = win32gui.GetClientRect(window.handle)
     width = client_rect[2] - client_rect[0]
@@ -160,7 +170,7 @@ def capture_window_frame(window: WindowSpecification) -> cv2.typing.MatLike:
     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # Convert from RGB to BGR for OpenCV
     return frame
 
-def compute_frame_difference(frame1: cv2.typing.MatLike, frame2: cv2.typing.MatLike):
+def compute_frame_difference(frame1: cv2.typing.MatLike, frame2: cv2.typing.MatLike) -> float:
     # Convert both frames to grayscale
     gray1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)

@@ -79,3 +79,8 @@ com.unity.textmeshpro
 # **/MSBuild/
 # MSBuildForUnity.Common.props
 # *.msb4u.*
+Benchmark/benchmark.csv
+
+Benchmark/output1.avi
+
+Benchmark/output2.avi
