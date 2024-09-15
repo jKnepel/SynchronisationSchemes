@@ -62,8 +62,8 @@ def main():
     time.sleep(2)
 
     # Benchmark
-    benchmark_wrapper('benchmark', 'AuthoritativeSimulation', warmups, runs, start_objects, end_objects, process1_socket, window1, process2_socket, window2)
-    #benchmark_wrapper('benchmark', 'ClientServerSimulation', number_of_objects, process1_socket, window1, process2_socket, window2)
+    benchmark_wrapper('authoritative.csv', 'AuthoritativeSimulation', warmups, runs, start_objects, end_objects, process1_socket, window1, process2_socket, window2)
+    #benchmark_wrapper('clientServer.csv', 'ClientServerSimulation', warmups, runs, start_objects, end_objects, process1_socket, window1, process2_socket, window2)
 
     # Cleanup
     process1_socket.close()
@@ -71,8 +71,8 @@ def main():
     process1.terminate()
     process2.terminate()
 
-def benchmark_wrapper(file_path: str, scene: str, warmups: int, runs: int, start_objects: int, end_objects: int, process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification):
-    with open(file_path + '.csv', mode='a') as file:
+def benchmark_wrapper(name: str, scene: str, warmups: int, runs: int, start_objects: int, end_objects: int, process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification):
+    with open(name, mode='a') as file:
         file.write(f",{scene}-incoming,{scene}-outgoing\n")
 
         # Repeat the benchmark for the range of desired objects
@@ -108,11 +108,11 @@ def benchmark(scene: str, number_objects: int, process1: socket, window1: Window
     time.sleep(1) # wait for network to be started
 
     # Create the visual comparison thread
-    fps = 10
+    fps = 60
     cancellation_event = threading.Event()
     cancellation_event.clear()
-    benchmark_thread = threading.Thread(target=capture_and_compare_videos, args=(window1, window2, cancellation_event, fps))
-    benchmark_thread.start()
+    visual_thread = threading.Thread(target=capture_and_compare_videos, args=(window1, window2, cancellation_event, fps))
+    visual_thread.start()
 
     # Client inputs for the benchmark
     directional_input(process2, 1.0, 0, 10)
@@ -121,7 +121,7 @@ def benchmark(scene: str, number_objects: int, process1: socket, window1: Window
     directional_input(process2, -0.3, -0.6, 9)
 
     cancellation_event.set()
-    benchmark_thread.join()
+    visual_thread.join()
 
     # Retrieve the results via the socket
     process2.sendall(GetBenchmark + struct.pack('B', 0))
@@ -186,26 +186,12 @@ def capture_window_frame(window: WindowSpecification) -> cv2.typing.MatLike:
     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # Convert from RGB to BGR for OpenCV
     return frame
 
-def compute_frame_difference(frame1: cv2.typing.MatLike, frame2: cv2.typing.MatLike) -> float:
-    # Convert both frames to grayscale
-    gray1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
-    gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
-    
-    # Compute the absolute difference between the two frames
-    difference = cv2.absdiff(gray1, gray2)
-    
-    # Compute the percentage of non-zero pixels in the difference image
-    non_zero_count = np.count_nonzero(difference)
-    total_pixels = difference.size
-    percent_difference = (non_zero_count / total_pixels) * 100
-    
-    return percent_difference
-
 def capture_and_compare_videos(window1: WindowSpecification, window2: WindowSpecification, cancellation_event: threading.Event, fps=10):
     # Initialize video writers for both windows
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out1 = cv2.VideoWriter("output1.avi", fourcc, fps, get_window_size(window1))
     out2 = cv2.VideoWriter("output2.avi", fourcc, fps, get_window_size(window2))
+    out3 = cv2.VideoWriter("difference.avi", fourcc, fps, get_window_size(window2))
 
     total_difference = 0.0
     frame_count = 0
@@ -213,16 +199,15 @@ def capture_and_compare_videos(window1: WindowSpecification, window2: WindowSpec
         # Capture frames
         frame1 = capture_window_frame(window1)
         frame2 = capture_window_frame(window2)
+        diff = cv2.absdiff(frame1, frame2)
 
-        # Write frames to video files
+        # Write frames and difference to video files
         out1.write(frame1)
         out2.write(frame2)
-
-        # Compare frames
-        difference = compute_frame_difference(frame1, frame2)
-        # print(f"Difference: {difference}%")
+        _, thresh_diff = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+        out3.write(thresh_diff)
         
-        total_difference += difference
+        total_difference += np.mean(diff)
         frame_count += 1
         time.sleep(1 / fps)
 
