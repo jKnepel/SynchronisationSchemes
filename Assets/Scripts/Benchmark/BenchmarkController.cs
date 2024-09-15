@@ -194,18 +194,14 @@ namespace jKnepel.SynchronisationSchemes.Benchmark
                 {
                     if (_sceneData is null || _sceneData.NetworkManager is null || _client is null) return;
                     
-                    var endTime = DateTime.Now;
-                    ulong incoming = 0, outgoing = 0;
+                    Writer writer = new(new() { UseCompression = false });
+                    writer.WriteInt32(_sceneData.NetworkManager.Logger.ClientTrafficStats.Count);
                     foreach (var stat in _sceneData.NetworkManager.Logger.ClientTrafficStats)
                     {
-                        incoming += stat.IncomingBytes;
-                        outgoing += stat.OutgoingBytes;
+                        writer.WriteUInt32(stat.Tick);
+                        writer.WriteUInt64(stat.IncomingBytes);
+                        writer.WriteUInt64(stat.OutgoingBytes);
                     }
-
-                    Writer writer = new(new() { UseCompression = false });
-                    writer.WriteInt32((int)(endTime - _startTime).TotalMilliseconds);
-                    writer.WriteUInt64(incoming);
-                    writer.WriteUInt64(outgoing);
                     _client.GetStream().Write(writer.GetBuffer(), 0, writer.Length);
                     break;
                 }

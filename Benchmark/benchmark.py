@@ -76,26 +76,17 @@ def benchmark_wrapper(name: str, scene: str, warmups: int, runs: int, start_obje
         file.write(f",{scene}-incoming,{scene}-outgoing\n")
 
         # Repeat the benchmark for the range of desired objects
-        for number_objects in range(start_objects, end_objects + 1, 1):
-            total_duration = 0
-            total_incoming = 0
-            total_outgoing = 0
-
+        for number_objects in range(start_objects, end_objects + 1, 5):
             # Repeat the benchmark by warmups and runs to lower result volatility 
             for x in range(1, warmups + runs + 1, 1):
-                benchmark_duration, incoming_bytes, outgoing_bytes = benchmark(scene, number_objects, process1, window1, process2, window2)
+                result = benchmark(scene, number_objects, process1, window1, process2, window2)
 
-                # Ignore warmup results    
+                # Ignore warmup results
                 if (x > warmups):
-                    total_duration += benchmark_duration
-                    total_incoming += incoming_bytes
-                    total_outgoing += outgoing_bytes
-            
-            incoming_mbps = (total_incoming * 8) / (total_duration / 1000) / 1000000
-            outgoing_mbps = (total_outgoing * 8) / (total_duration / 1000) / 1000000
-            file.write(f"{number_objects},{incoming_mbps},{outgoing_mbps}\n")
+                    for _, (tick, incoming, outgoing) in enumerate(result):
+                        file.write(f"{tick},{incoming},{outgoing}\n")            
 
-def benchmark(scene: str, number_objects: int, process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification) -> tuple[int, int, int]:
+def benchmark(scene: str, number_objects: int, process1: socket, window1: WindowSpecification, process2: socket, window2: WindowSpecification):
     scene_bytes = scene.encode('utf-8')
     process1.sendall(LoadScene + struct.pack('B', len(scene_bytes)) + scene_bytes)
     process2.sendall(LoadScene + struct.pack('B', len(scene_bytes)) + scene_bytes)
@@ -125,21 +116,36 @@ def benchmark(scene: str, number_objects: int, process1: socket, window1: Window
 
     # Retrieve the results via the socket
     process2.sendall(GetBenchmark + struct.pack('B', 0))
-    data_format = '<iQQ'
-    data_size = struct.calcsize(data_format)
+    length_format = '<i'
+    length_size = struct.calcsize(length_format)
+
     data = b""
-    while len(data) < data_size: # wait until all data is streamed
+    while len(data) < length_size:
+        packet = process2.recv(length_size - len(data))
+        if not packet:
+            break
+        data += packet
+
+    (length,) = struct.unpack(length_format, data)
+    data_format = '<IQQ'
+    data_size = struct.calcsize(data_format) * length
+    data = b""
+    while len(data) < data_size:
         packet = process2.recv(data_size - len(data))
         if not packet:
             break
         data += packet
-    benchmark_duration, incoming_bytes, outgoing_bytes = struct.unpack(data_format, data)
+
+    result = []
+    for i in range(length):
+        offset = i * struct.calcsize(data_format)
+        result.append(struct.unpack_from(data_format, data, offset))
 
     process1.sendall(UnloadScene + struct.pack('B', 0))
     process2.sendall(UnloadScene + struct.pack('B', 0))
     time.sleep(1)
 
-    return benchmark_duration, incoming_bytes, outgoing_bytes
+    return result
 
 def get_screen_size() -> tuple[int, int]:
     user32 = ctypes.windll.user32
