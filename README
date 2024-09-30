@@ -1,0 +1,5 @@
+# SynchronisationSchemes
+
+For the python benchmark the missing dependencies need to be installed with the following command:
+
+> pip install numpy opencv-python pillow pywinauto pywin32
