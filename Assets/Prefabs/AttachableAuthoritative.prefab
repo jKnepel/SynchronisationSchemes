@@ -10,7 +10,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 3486250428610655637, guid: dcb14f8386a8bf9439237888c4a43c7b, type: 3}
       propertyPath: m_Name
-      value: Attachable (1) Variant
+      value: AttachableAuthoritative
       objectReference: {fileID: 0}
     - target: {fileID: 6445847232132929861, guid: dcb14f8386a8bf9439237888c4a43c7b, type: 3}
       propertyPath: m_LocalPosition.x

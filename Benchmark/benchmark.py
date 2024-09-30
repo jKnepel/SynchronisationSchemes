@@ -29,8 +29,8 @@ def main():
     exe_path = r"../Builds/SynchronisationSchemes.exe"
     warmups = 0
     runs = 1
-    start_objects = 1
-    end_objects = 10
+    start_objects = 50
+    end_objects = 50
     port1 = 9989
     port2 = 9990
 
